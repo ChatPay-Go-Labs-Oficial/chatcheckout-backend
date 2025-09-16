@@ -5,10 +5,10 @@ export class CreateMerchantDto {
   userId: string;
 
   @ApiProperty()
-  display_name: string;
+  merchant_id: string; // CPF ou ID internacional
 
   @ApiProperty()
-  description: string;
+  display_name: string;
 
   @ApiProperty()
   logo_url: string;

@@ -20,8 +20,8 @@ export class MerchantService {
     if (!user) throw new NotFoundException('User not found');
     const merchant = this.merchantRepository.create({
       user,
+      merchant_id: dto.merchant_id,
       display_name: dto.display_name,
-      description: dto.description,
       logo_url: dto.logo_url,
     });
     return this.merchantRepository.save(merchant);

@@ -9,11 +9,11 @@ export class Merchant {
   @ManyToOne(() => User, { nullable: false })
   user: User;
 
-  @Column()
-  display_name: string;
+  @Column({ unique: true })
+  merchant_id: string;
 
   @Column()
-  description: string;
+  display_name: string;
 
   @Column()
   logo_url: string;

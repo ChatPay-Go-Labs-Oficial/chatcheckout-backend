@@ -2,10 +2,10 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateMerchantDto {
   @ApiPropertyOptional()
-  display_name?: string;
+  merchant_id?: string;
 
   @ApiPropertyOptional()
-  description?: string;
+  display_name?: string;
 
   @ApiPropertyOptional()
   logo_url?: string;

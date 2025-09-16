@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import { ProductModule } from './product/product.module';
 import { MerchantModule } from './merchant/merchant.module';
 import { UserModule } from './user/user.module';
+import { ChatAiModule } from './chat-ai/chat-ai.module';
 
 @Module({
   imports: [
@@ -19,10 +20,11 @@ import { UserModule } from './user/user.module';
       autoLoadEntities: true,
       synchronize: true, // NOTE: Set to false in production
     }),
-  AuthModule,
-  UserModule,
-  MerchantModule,
-  ProductModule,
+    AuthModule,
+    UserModule,
+    MerchantModule,
+    ProductModule,
+    ChatAiModule,
   ],
 })
 export class AppModule {}

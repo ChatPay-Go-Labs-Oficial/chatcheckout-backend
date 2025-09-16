@@ -34,7 +34,7 @@ export class AuthService {
 
   async refreshToken(dto: RefreshTokenDto): Promise<{ access_token: string }> {
     try {
-      const payload = this.jwtService.verify(dto.refresh_token);
+      const payload = this.jwtService.verify(dto.refresh_token) as { sub: string; email: string };
       return { access_token: this.jwtService.sign({ sub: payload.sub, email: payload.email }) };
     } catch {
       throw new UnauthorizedException('Invalid refresh token');

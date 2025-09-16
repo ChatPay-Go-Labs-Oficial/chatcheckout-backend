@@ -39,6 +39,13 @@ export class MerchantService {
     return this.merchantRepository.save(merchant);
   }
 
+  async findByUserId(userId: string): Promise<Merchant | null> {
+    return this.merchantRepository.findOne({
+      where: { user: { id: userId } },
+      relations: ['user'],
+    });
+  }
+
   async remove(id: string): Promise<void> {
     const merchant = await this.findById(id);
     await this.merchantRepository.remove(merchant);

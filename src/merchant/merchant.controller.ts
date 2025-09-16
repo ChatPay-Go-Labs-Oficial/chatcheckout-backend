@@ -27,6 +27,19 @@ export class MerchantController {
     return this.merchantService.findById(id);
   }
 
+  @Get('user/:userId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'Get merchant by user ID' })
+  @ApiResponse({ status: 200, description: 'Merchant found.' })
+  @ApiResponse({ status: 404, description: 'Merchant not found.' })
+  async findByUserId(@Param('userId') userId: string) {
+    const merchant = await this.merchantService.findByUserId(userId);
+    if (!merchant) {
+      return { message: 'Merchant not found for this user' };
+    }
+    return merchant;
+  }
+
   @Put(':id')
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Update merchant' })

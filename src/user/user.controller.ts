@@ -1,4 +1,15 @@
-import { Controller, Post, Body, Get, Param, Put, Delete, UseGuards, Req, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Param,
+  Put,
+  Delete,
+  UseGuards,
+  Req,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -27,8 +38,8 @@ export class UserController {
     if (!req.user || !('userId' in req.user)) {
       throw new UnauthorizedException('User not authenticated');
     }
-    return this.userService.findById((req.user as any)['userId']);
-  }  
+    return this.userService.findById((req.user as { userId: string }).userId);
+  }
 
   @Put(':id')
   @UseGuards(AuthGuard('jwt'))

@@ -7,10 +7,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   const configService = app.get(ConfigService);
-  app.enableCors({
-    origin: configService.get('FRONTEND_URL'),
-    credentials: true,
-  });
+  // app.enableCors({
+  //   origin: configService.get('FRONTEND_URL'),
+  //   credentials: true,
+  // });
+  app.enableCors(); // Permitir todas as origens
 
   const config = new DocumentBuilder()
     .setTitle('API')

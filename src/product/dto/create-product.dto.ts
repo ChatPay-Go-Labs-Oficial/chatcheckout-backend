@@ -22,5 +22,5 @@ export class CreateProductDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  merchantId: string;
+  userId: string;
 }

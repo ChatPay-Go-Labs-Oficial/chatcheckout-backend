@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './product.entity';
-import { Merchant } from '../merchant/merchant.entity';
+import { User } from 'src/user/user.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
@@ -11,42 +11,42 @@ export class ProductService {
   constructor(
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
-    @InjectRepository(Merchant)
-    private readonly merchantRepository: Repository<Merchant>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   async create(dto: CreateProductDto): Promise<Product> {
-    const merchant = await this.merchantRepository.findOne({
-      where: { id: dto.merchantId },
+    const user = await this.userRepository.findOne({
+      where: { id: dto.userId },
     });
-    if (!merchant) throw new Error('Merchant not found');
+    if (!user) throw new Error('User not found');
     const product = this.productRepository.create({
       name: dto.name,
       price: dto.price,
       currency: dto.currency,
       description: dto.description,
-      merchant,
+      user,
     });
     return this.productRepository.save(product);
   }
 
   async findAll(): Promise<Product[]> {
-    return this.productRepository.find({ relations: ['merchant'] });
+    return this.productRepository.find({ relations: ['user'] });
   }
 
   async findById(id: string): Promise<Product> {
     const product = await this.productRepository.findOne({
       where: { id },
-      relations: ['merchant'],
+      relations: ['user'],
     });
     if (!product) throw new NotFoundException('Product not found');
     return product;
   }
 
-  async findByMerchant(merchantId: string): Promise<Product[]> {
+  async findByUser(userId: string): Promise<Product[]> {
     return this.productRepository.find({
-      where: { merchant: { id: merchantId } },
-      relations: ['merchant'],
+      where: { user: { id: userId } },
+      relations: ['user'],
     });
   }
 

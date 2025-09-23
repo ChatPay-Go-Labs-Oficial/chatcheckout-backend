@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
-import { Merchant } from '../merchant/merchant.entity';
+import { User } from 'src/user/user.entity';
 
 export enum Currency {
   BRL = 'BRL',
@@ -24,6 +24,6 @@ export class Product {
   @Column()
   description: string;
 
-  @ManyToOne(() => Merchant, { nullable: false })
-  merchant: Merchant;
+  @ManyToOne(() => User, { nullable: false })
+  user: User;
 }

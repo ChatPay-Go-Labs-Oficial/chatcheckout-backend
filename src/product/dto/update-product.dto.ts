@@ -27,5 +27,5 @@ export class UpdateProductDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsNotEmpty()
-  merchantId?: string;
+  userId?: string;
 }

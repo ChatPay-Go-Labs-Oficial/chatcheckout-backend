@@ -36,12 +36,12 @@ export class ProductController {
     return this.productService.findById(id);
   }
 
-  @Get('merchant/:merchantId')
+  @Get('user/:userId')
   @UseGuards(AuthGuard('jwt'))
-  @ApiOperation({ summary: 'List products by merchant' })
-  @ApiResponse({ status: 200, description: 'List of merchant products.' })
-  async findByMerchant(@Param('merchantId') merchantId: string) {
-    return this.productService.findByMerchant(merchantId);
+  @ApiOperation({ summary: 'List products by user' })
+  @ApiResponse({ status: 200, description: 'List of user products.' })
+  async findByUser(@Param('userId') userId: string) {
+    return this.productService.findByUser(userId);
   }
 
   @Put(':id')

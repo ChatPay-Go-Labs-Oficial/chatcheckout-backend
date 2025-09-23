@@ -15,7 +15,16 @@ export class UserService {
 
   async create(dto: CreateUserDto): Promise<User> {
     const password_hash = await bcrypt.hash(dto.password, 10);
-    const user = this.userRepository.create({ email: dto.email, password_hash });
+    const user = this.userRepository.create({
+      email: dto.email,
+      password_hash,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      cpf: dto.cpf,
+      role: dto.role,
+      companyName: dto.companyName,
+      cnpj: dto.cnpj,
+    });
     return this.userRepository.save(user);
   }
 
@@ -27,8 +36,13 @@ export class UserService {
 
   async update(id: string, dto: UpdateUserDto): Promise<User> {
     const user = await this.findById(id);
-    if (dto.email) user.email = dto.email;
-    if (dto.password) user.password_hash = await bcrypt.hash(dto.password, 10);
+
+    const { password, ...rest } = dto;
+    Object.assign(user, rest);
+    if (password) {
+      user.password_hash = await bcrypt.hash(password, 10);
+    }
+
     return this.userRepository.save(user);
   }
 

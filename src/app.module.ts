@@ -3,7 +3,6 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { ProductModule } from './product/product.module';
-import { MerchantModule } from './merchant/merchant.module';
 import { UserModule } from './user/user.module';
 import { ChatAiModule } from './chat-ai/chat-ai.module';
 
@@ -22,7 +21,6 @@ import { ChatAiModule } from './chat-ai/chat-ai.module';
     }),
     AuthModule,
     UserModule,
-    MerchantModule,
     ProductModule,
     ChatAiModule,
   ],

@@ -25,7 +25,7 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<{ access_token: string; refresh_token: string }> {
     const user = await this.validateUser(dto.email, dto.password);
-    const payload = { sub: user.id, email: user.email };
+    const payload = { sub: user.id, firstName: user.firstName,email: user.email };
     return {
       access_token: this.jwtService.sign(payload),
       refresh_token: this.jwtService.sign(payload, { expiresIn: '7d' }),

@@ -1,21 +1,31 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { ConfigService } from '@nestjs/config'; // Adicione esta linha
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const configService = app.get(ConfigService);
-  // app.enableCors({
-  //   origin: configService.get('FRONTEND_URL'),
-  //   credentials: true,
-  // });
+  // Configurar ValidationPipe global
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, // Remove propriedades não decoradas do DTO
+      forbidNonWhitelisted: true, // Rejeita propriedades não decoradas
+      transform: true, // Transforma automaticamente os tipos
+      transformOptions: {
+        enableImplicitConversion: true, // Converte tipos automaticamente
+      },
+      errorHttpStatusCode: 400, // Status code para erros de validação
+    }),
+  );
+
+  // Configurar CORS
   app.enableCors(); // Permitir todas as origens
 
+  // Configurar Swagger
   const config = new DocumentBuilder()
-    .setTitle('API')
-    .setDescription('Documentação da API')
+    .setTitle('ChatCheckout API')
+    .setDescription('API do ChatCheckout - Plataforma de e-commerce conversacional')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
@@ -24,4 +34,5 @@ async function bootstrap() {
 
   await app.listen(process.env.PORT || 3000);
 }
-bootstrap();
+
+void bootstrap();

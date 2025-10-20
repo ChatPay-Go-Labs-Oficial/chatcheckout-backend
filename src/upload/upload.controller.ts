@@ -11,7 +11,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('upload')
 export class UploadController {
-  constructor(private readonly uploadService: UploadService) { }
+  constructor(private readonly uploadService: UploadService) {}
 
   @Post()
   @UseInterceptors(FileInterceptor('file'))

@@ -12,17 +12,29 @@ export class Product {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ nullable: false })
   name: string;
 
-  @Column('decimal')
+  @Column({ nullable: false })
+  description: string;
+
+  @Column('decimal', { nullable: false })
   price: number;
 
   @Column({ type: 'enum', enum: Currency })
   currency: Currency;
 
-  @Column()
-  description: string;
+  @Column({ nullable: false })
+  salesPageUrl: string;
+
+  @Column({ nullable: true })
+  promptAi: string;
+
+  @Column({ nullable: true })
+  imageUrl: string;
+
+  @Column({ nullable: false })
+  productUrl: string;
 
   @ManyToOne(() => User, { nullable: false })
   user: User;

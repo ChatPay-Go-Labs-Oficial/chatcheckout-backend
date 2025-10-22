@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 @Injectable()
 export class UploadService {
   private storage: Storage;
-  private bucketName = 'chat-checkout-s3';
+  private bucketName = 'chat-checkout-storage';
 
   constructor(private readonly configService: ConfigService) {
     this.storage = new Storage({
@@ -26,7 +26,7 @@ export class UploadService {
 
     return new Promise((resolve, reject) => {
       blobStream.on('error', (err) => reject(err));
-      blobStream.on('finish', async () => {
+      blobStream.on('finish', () => {
         // URL pública (se o bucket permitir acesso público)
         const publicUrl = `https://storage.googleapis.com/${this.bucketName}/${blob.name}`;
         resolve(publicUrl);

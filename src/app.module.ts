@@ -1,30 +1,42 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
 import { ProductModule } from './product/product.module';
 import { UserModule } from './user/user.module';
 import { ChatAiModule } from './chat-ai/chat-ai.module';
 import { UploadModule } from './upload/upload.module';
+import { RedisModule } from './config/redis.module';
+import { dataSourceOptions } from './config/typeorm.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DATABASE_HOST,
-      port: parseInt(process.env.DATABASE_PORT || '5432', 10),
-      username: process.env.DATABASE_USER,
-      password: process.env.DATABASE_PASSWORD,
-      database: process.env.DATABASE_NAME,
-      autoLoadEntities: true,
-      synchronize: true, // NOTE: Set to false in production
+    TypeOrmModule.forRoot(dataSourceOptions),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => [
+        {
+          ttl: config.get<number>('THROTTLE_TTL', 60) * 1000, // Converte segundos para ms
+          limit: config.get<number>('THROTTLE_LIMIT', 10),
+        },
+      ],
     }),
+    RedisModule,
     AuthModule,
     UserModule,
     ProductModule,
     ChatAiModule,
     UploadModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

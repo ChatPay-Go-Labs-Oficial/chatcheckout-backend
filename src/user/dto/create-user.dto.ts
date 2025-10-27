@@ -10,6 +10,7 @@ import {
   Matches,
 } from 'class-validator';
 import { PasswordMatch } from '../validators/password-match.validator';
+import { IsCpf, IsCnpj } from '../../common';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -17,7 +18,7 @@ export class CreateUserDto {
     description: 'Nome do vendedor',
   })
   @IsNotEmpty({ message: 'Nome é obrigatório' })
-  @MaxLength(50, { message: 'Nome deve ter no máximo 50 caracteres' })
+  @MaxLength(100, { message: 'Nome deve ter no máximo 100 caracteres' })
   firstName: string;
 
   @ApiProperty({
@@ -25,7 +26,7 @@ export class CreateUserDto {
     description: 'Sobrenome do vendedor',
   })
   @IsNotEmpty({ message: 'Sobrenome é obrigatório' })
-  @MaxLength(50, { message: 'Sobrenome deve ter no máximo 50 caracteres' })
+  @MaxLength(100, { message: 'Sobrenome deve ter no máximo 100 caracteres' })
   lastName: string;
 
   @ApiProperty({
@@ -38,10 +39,11 @@ export class CreateUserDto {
 
   @ApiProperty({
     example: '12345678901',
-    description: 'CPF único do vendedor (11 dígitos)',
+    description: 'CPF único do vendedor (11 dígitos, com validação de dígitos verificadores)',
   })
   @IsNotEmpty({ message: 'CPF é obrigatório' })
   @Matches(/^\d{11}$/, { message: 'CPF deve conter exatamente 11 dígitos numéricos' })
+  @IsCpf({ message: 'CPF inválido. Verifique os dígitos verificadores' })
   cpf: string;
 
   @ApiProperty({
@@ -78,15 +80,16 @@ export class CreateUserDto {
     description: 'Nome da empresa (opcional)',
   })
   @IsOptional()
-  @MaxLength(100, { message: 'Nome da empresa deve ter no máximo 100 caracteres' })
+  @MaxLength(200, { message: 'Nome da empresa deve ter no máximo 200 caracteres' })
   companyName?: string;
 
   @ApiProperty({
     required: false,
     example: '12345678000195',
-    description: 'CNPJ da empresa (14 dígitos, opcional)',
+    description: 'CNPJ da empresa (14 dígitos, opcional, com validação de dígitos verificadores)',
   })
   @IsOptional()
   @Matches(/^\d{14}$/, { message: 'CNPJ deve conter exatamente 14 dígitos numéricos' })
+  @IsCnpj({ message: 'CNPJ inválido. Verifique os dígitos verificadores' })
   cnpj?: string;
 }

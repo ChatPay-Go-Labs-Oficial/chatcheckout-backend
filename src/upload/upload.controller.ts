@@ -1,13 +1,7 @@
-import {
-  Controller,
-  Post,
-  UseInterceptors,
-  UploadedFile,
-  ParseFilePipe,
-  FileTypeValidator,
-} from '@nestjs/common';
+import { Controller, Post, UseInterceptors, UploadedFiles } from '@nestjs/common';
 import { UploadService } from './upload.service';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { MultiFileValidationPipe } from 'src/upload/pipes/multi-file-validation.pipe';
 
 @Controller('upload')
 export class UploadController {
@@ -16,15 +10,7 @@ export class UploadController {
   @Post()
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          // new MaxFileSizeValidator({ maxSize: 1000 }),
-          // new FileTypeValidator({ fileType: 'image/jpeg' }),
-          new FileTypeValidator({ fileType: 'application/pdf' }),
-        ],
-      }),
-    )
+    @UploadedFiles(new MultiFileValidationPipe())
     file: Express.Multer.File,
   ) {
     const url = await this.uploadService.uploadFile(file);

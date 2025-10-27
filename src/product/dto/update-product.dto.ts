@@ -23,9 +23,4 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   description?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNotEmpty()
-  userId?: string;
 }

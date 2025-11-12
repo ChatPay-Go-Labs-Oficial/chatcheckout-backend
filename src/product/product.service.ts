@@ -6,6 +6,7 @@ import { User } from 'src/user/user.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { UploadService } from 'src/upload/upload.service';
+import { ProductHashService } from './product-hash.service';
 
 @Injectable()
 export class ProductService {
@@ -15,6 +16,7 @@ export class ProductService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly uploadService: UploadService,
+    private readonly productHashService: ProductHashService,
   ) {}
 
   async create(
@@ -41,6 +43,11 @@ export class ProductService {
       imageUrl = await this.uploadService.uploadFile(productImage);
     }
 
+    const productHash = this.productHashService.generateHash(
+      productUrl || '',
+      dto.promptAi || null,
+    );
+
     const product = this.productRepository.create({
       name: dto.name,
       price: dto.price,
@@ -50,6 +57,7 @@ export class ProductService {
       promptAi: dto.promptAi,
       productUrl,
       imageUrl,
+      productHash,
       user,
     });
 
@@ -101,5 +109,9 @@ export class ProductService {
     const product = await this.productRepository.findOne({ where: { id, user: { id: userId } } });
     if (!product) throw new NotFoundException('Product not found');
     await this.productRepository.remove(product);
+  }
+
+  decodeProductHash(hash: string): { productUrl: string; promptAI: string } {
+    return this.productHashService.decodeHash(hash);
   }
 }

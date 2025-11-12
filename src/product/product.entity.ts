@@ -36,6 +36,9 @@ export class Product {
   @Column({ nullable: false })
   productUrl: string;
 
+  @Column({ nullable: false })
+  productHash: string;
+
   @ManyToOne(() => User, { nullable: false })
   user: User;
 }

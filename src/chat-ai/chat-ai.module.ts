@@ -3,10 +3,11 @@ import { HttpModule } from '@nestjs/axios';
 import { ChatAiService } from './chat-ai.service';
 import { ChatAiController } from './chat-ai.controller';
 import { AuthModule } from '../auth/auth.module';
+import { ProductHashService } from '../product/product-hash.service';
 
 @Module({
   imports: [HttpModule, AuthModule],
   controllers: [ChatAiController],
-  providers: [ChatAiService],
+  providers: [ChatAiService, ProductHashService],
 })
 export class ChatAiModule {}

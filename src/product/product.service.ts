@@ -43,9 +43,12 @@ export class ProductService {
       imageUrl = await this.uploadService.uploadFile(productImage);
     }
 
-    const productHash = this.productHashService.generateHash(
-      productUrl || '',
+    // Generate temporary hash to satisfy NOT NULL constraint
+    const tempHash = this.productHashService.generateHash(
+      'temp',
+      dto.salesPageUrl || '',
       dto.promptAi || null,
+      userId,
     );
 
     const product = this.productRepository.create({
@@ -57,11 +60,24 @@ export class ProductService {
       promptAi: dto.promptAi,
       productUrl,
       imageUrl,
-      productHash,
+      productHash: tempHash,
       user,
     });
 
-    return this.productRepository.save(product);
+    // Save first to get the product ID
+    const savedProduct = await this.productRepository.save(product);
+
+    // Generate final hash with real product ID
+    const finalHash = this.productHashService.generateHash(
+      savedProduct.id,
+      dto.salesPageUrl || '',
+      dto.promptAi || null,
+      userId,
+    );
+
+    // Update product with final hash
+    savedProduct.productHash = finalHash;
+    return this.productRepository.save(savedProduct);
   }
 
   async findAll(
@@ -99,9 +115,29 @@ export class ProductService {
   }
 
   async update(id: string, dto: UpdateProductDto, userId: string): Promise<Product> {
-    const product = await this.productRepository.findOne({ where: { id, user: { id: userId } } });
+    const product = await this.productRepository.findOne({
+      where: { id, user: { id: userId } },
+    });
     if (!product) throw new NotFoundException('Product not found');
+
+    // Check if fields that affect hash are being updated
+    const hashFieldsChanged =
+      (dto.salesPageUrl && dto.salesPageUrl !== product.salesPageUrl) ||
+      (dto.promptAi !== undefined && dto.promptAi !== product.promptAi);
+
     Object.assign(product, dto);
+
+    // Regenerate hash if relevant fields changed
+    if (hashFieldsChanged) {
+      const newHash = this.productHashService.generateHash(
+        product.id,
+        product.salesPageUrl || '',
+        product.promptAi || null,
+        userId,
+      );
+      product.productHash = newHash;
+    }
+
     return this.productRepository.save(product);
   }
 
@@ -111,7 +147,69 @@ export class ProductService {
     await this.productRepository.remove(product);
   }
 
-  decodeProductHash(hash: string): { productUrl: string; promptAI: string } {
+  decodeProductHash(hash: string): {
+    productId: string;
+    salesPageUrl: string;
+    promptAI: string;
+    userId: string;
+  } {
     return this.productHashService.decodeHash(hash);
+  }
+
+  async getProductByHash(hash: string): Promise<{
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    currency: string;
+    salesPageUrl: string;
+    imageUrl?: string;
+    promptAi?: string;
+    productHash: string;
+    infoproducer: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      companyName?: string;
+    };
+  }> {
+    try {
+      const decoded = this.productHashService.decodeHash(hash);
+
+      const product = await this.productRepository.findOne({
+        where: { id: decoded.productId },
+        relations: ['user'],
+      });
+
+      if (!product) {
+        throw new NotFoundException('Product not found');
+      }
+
+      // Return only essential data
+      return {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        currency: product.currency,
+        salesPageUrl: product.salesPageUrl,
+        imageUrl: product.imageUrl,
+        promptAi: product.promptAi,
+        productHash: product.productHash,
+        infoproducer: {
+          id: product.user.id,
+          firstName: product.user.firstName,
+          lastName: product.user.lastName,
+          email: product.user.email,
+          companyName: product.user.companyName,
+        },
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new Error('Invalid hash or decryption failed');
+    }
   }
 }

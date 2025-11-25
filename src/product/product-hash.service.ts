@@ -3,8 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
 interface ProductHashData {
-  productUrl: string;
+  productId: string;
+  salesPageUrl: string;
   promptAI: string;
+  userId: string;
 }
 
 @Injectable()
@@ -23,10 +25,17 @@ export class ProductHashService {
     this.iv = Buffer.alloc(16, 0); // Use a fixed IV for consistent hashing
   }
 
-  generateHash(productUrl: string, promptAi: string | null): string {
+  generateHash(
+    productId: string,
+    salesPageUrl: string,
+    promptAi: string | null,
+    userId: string,
+  ): string {
     const data: ProductHashData = {
-      productUrl: productUrl || '',
+      productId: productId || '',
+      salesPageUrl: salesPageUrl || '',
       promptAI: promptAi || '',
+      userId: userId || '',
     };
 
     const cipher = crypto.createCipheriv(this.algorithm, this.key, this.iv);
@@ -40,8 +49,8 @@ export class ProductHashService {
       const decipher = crypto.createDecipheriv(this.algorithm, this.key, this.iv);
       let decrypted = decipher.update(hash, 'hex', 'utf8');
       decrypted += decipher.final('utf8');
-      return JSON.parse(decrypted);
-    } catch (error) {
+      return JSON.parse(decrypted) as ProductHashData;
+    } catch {
       throw new Error('Invalid hash or decryption failed');
     }
   }

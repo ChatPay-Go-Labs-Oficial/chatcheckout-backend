@@ -82,6 +82,15 @@ export class ProductController {
     return this.productService.findAll(page, limit);
   }
 
+  @Get('decode/:hash')
+  @ApiOperation({ summary: 'Decode product hash and get product info' })
+  @ApiResponse({ status: 200, description: 'Product info decoded with seller data.' })
+  @ApiResponse({ status: 404, description: 'Product not found.' })
+  @ApiResponse({ status: 400, description: 'Invalid hash.' })
+  async decodeHash(@Param('hash') hash: string) {
+    return this.productService.getProductByHash(hash);
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get product by ID' })

@@ -25,7 +25,7 @@ export class ChatAiService {
 
     const payload = {
       message: createChatAiDto.message,
-      productUrl: decodedHash.productUrl,
+      productUrl: decodedHash.salesPageUrl,
       promptAI: decodedHash.promptAI,
     };
 

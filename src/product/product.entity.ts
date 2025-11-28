@@ -36,8 +36,8 @@ export class Product {
   @Column({ nullable: false })
   productUrl: string;
 
-  @Column({ nullable: false })
-  productHash: string;
+  @Column({ type: 'varchar', nullable: true })
+  productHash: string | null;
 
   @ManyToOne(() => User, { nullable: false })
   user: User;

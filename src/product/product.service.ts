@@ -43,14 +43,6 @@ export class ProductService {
       imageUrl = await this.uploadService.uploadFile(productImage);
     }
 
-    // Generate temporary hash to satisfy NOT NULL constraint
-    const tempHash = this.productHashService.generateHash(
-      'temp',
-      dto.salesPageUrl || '',
-      dto.promptAi || null,
-      userId,
-    );
-
     const product = this.productRepository.create({
       name: dto.name,
       price: dto.price,
@@ -60,23 +52,21 @@ export class ProductService {
       promptAi: dto.promptAi,
       productUrl,
       imageUrl,
-      productHash: tempHash,
+      productHash: null, // Will be set after save
       user,
     });
 
     // Save first to get the product ID
-    const savedProduct = await this.productRepository.save(product);
+    const savedProduct = (await this.productRepository.save(product)) as Product;
 
-    // Generate final hash with real product ID
-    const finalHash = this.productHashService.generateHash(
+    // Generate final hash with real product ID (single save)
+    savedProduct.productHash = this.productHashService.generateHash(
       savedProduct.id,
       dto.salesPageUrl || '',
       dto.promptAi || null,
       userId,
     );
 
-    // Update product with final hash
-    savedProduct.productHash = finalHash;
     return this.productRepository.save(savedProduct);
   }
 
@@ -165,7 +155,7 @@ export class ProductService {
     salesPageUrl: string;
     imageUrl?: string;
     promptAi?: string;
-    productHash: string;
+    productHash: string | null;
     infoproducer: {
       id: string;
       firstName: string;

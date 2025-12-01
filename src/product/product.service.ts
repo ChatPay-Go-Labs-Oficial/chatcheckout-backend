@@ -112,7 +112,7 @@ export class ProductService {
 
     // Check if fields that affect hash are being updated
     const hashFieldsChanged =
-      (dto.salesPageUrl && dto.salesPageUrl !== product.salesPageUrl) ||
+      (dto.salesPageUrl !== undefined && dto.salesPageUrl !== product.salesPageUrl) ||
       (dto.promptAi !== undefined && dto.promptAi !== product.promptAi);
 
     Object.assign(product, dto);

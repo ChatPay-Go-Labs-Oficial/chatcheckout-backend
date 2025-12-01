@@ -91,12 +91,12 @@ export class ProductController {
   @Get('decode/:hash')
   @ApiOperation({
     summary: 'Decode product hash and get product info',
-    description: 'Public endpoint - returns product details and limited seller info',
-  })
-  @ApiResponse({ status: 200, description: 'Product info decoded with non-sensitive seller data.' })
+  @Get('by-hash/:hash')
+  @ApiOperation({ summary: 'Get product by hash and seller info' })
+  @ApiResponse({ status: 200, description: 'Product info decoded with seller data.' })
   @ApiResponse({ status: 404, description: 'Product not found.' })
   @ApiResponse({ status: 400, description: 'Invalid hash.' })
-  async decodeHash(@Param('hash') hash: string) {
+  async getProductByHash(@Param('hash') hash: string) {
     return this.productService.getProductByHash(hash);
   }
 

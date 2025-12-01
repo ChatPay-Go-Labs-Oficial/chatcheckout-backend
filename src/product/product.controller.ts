@@ -82,9 +82,18 @@ export class ProductController {
     return this.productService.findAll(page, limit);
   }
 
+  /**
+   * Public endpoint for checkout flow.
+   * Intentionally unauthenticated to allow customers to view product details via hash.
+   * Only returns non-sensitive seller information (no email or private data).
+   * The product hash serves as the authorization mechanism.
+   */
   @Get('decode/:hash')
-  @ApiOperation({ summary: 'Decode product hash and get product info' })
-  @ApiResponse({ status: 200, description: 'Product info decoded with seller data.' })
+  @ApiOperation({
+    summary: 'Decode product hash and get product info',
+    description: 'Public endpoint - returns product details and limited seller info',
+  })
+  @ApiResponse({ status: 200, description: 'Product info decoded with non-sensitive seller data.' })
   @ApiResponse({ status: 404, description: 'Product not found.' })
   @ApiResponse({ status: 400, description: 'Invalid hash.' })
   async decodeHash(@Param('hash') hash: string) {

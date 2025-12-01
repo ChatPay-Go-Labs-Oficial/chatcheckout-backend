@@ -57,7 +57,7 @@ export class ProductService {
     });
 
     // Save first to get the product ID
-    const savedProduct = (await this.productRepository.save(product)) as Product;
+    const savedProduct = await this.productRepository.save(product);
 
     // Generate final hash with real product ID (single save)
     savedProduct.productHash = this.productHashService.generateHash(
@@ -146,6 +146,11 @@ export class ProductService {
     return this.productHashService.decodeHash(hash);
   }
 
+  /**
+   * Public endpoint used in checkout flow.
+   * Returns product info and limited seller data.
+   * The hash acts as a secure identifier but should not expose private seller details.
+   */
   async getProductByHash(hash: string): Promise<{
     id: string;
     name: string;
@@ -160,7 +165,6 @@ export class ProductService {
       id: string;
       firstName: string;
       lastName: string;
-      email: string;
       companyName?: string;
     };
   }> {
@@ -191,7 +195,6 @@ export class ProductService {
           id: product.user.id,
           firstName: product.user.firstName,
           lastName: product.user.lastName,
-          email: product.user.email,
           companyName: product.user.companyName,
         },
       };

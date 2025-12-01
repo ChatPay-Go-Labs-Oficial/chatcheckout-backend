@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './product.entity';
@@ -202,7 +202,7 @@ export class ProductService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      throw new Error('Invalid hash or decryption failed');
+      throw new BadRequestException('Invalid hash or decryption failed');
     }
   }
 }

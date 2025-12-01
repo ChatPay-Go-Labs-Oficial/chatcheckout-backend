@@ -16,6 +16,7 @@ import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductDecodeResponseDto } from './dto/product-decode-response.dto';
+import { DecodeHashParamsDto } from './dto/decode-hash-params.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -101,9 +102,9 @@ export class ProductController {
     type: ProductDecodeResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Product not found.' })
-  @ApiResponse({ status: 400, description: 'Invalid hash.' })
-  async getProductByHash(@Param('hash') hash: string) {
-    return this.productService.getProductByHash(hash);
+  @ApiResponse({ status: 400, description: 'Invalid hash format or decryption failed.' })
+  async getProductByHash(@Param() params: DecodeHashParamsDto) {
+    return this.productService.getProductByHash(params.hash);
   }
 
   @Get(':id')

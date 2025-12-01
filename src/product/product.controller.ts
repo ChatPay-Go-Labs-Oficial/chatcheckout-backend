@@ -15,6 +15,7 @@ import {
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { ProductDecodeResponseDto } from './dto/product-decode-response.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -88,12 +89,17 @@ export class ProductController {
    * Only returns non-sensitive seller information (no email or private data).
    * The product hash serves as the authorization mechanism.
    */
-  @Get('decode/:hash')
-  @ApiOperation({
-    summary: 'Decode product hash and get product info',
   @Get('by-hash/:hash')
-  @ApiOperation({ summary: 'Get product by hash and seller info' })
-  @ApiResponse({ status: 200, description: 'Product info decoded with seller data.' })
+  @ApiOperation({
+    summary: 'Get product by hash and seller info',
+    description:
+      'Public endpoint - returns product details and limited seller info (excludes sensitive data like email)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Product info decoded with non-sensitive seller data.',
+    type: ProductDecodeResponseDto,
+  })
   @ApiResponse({ status: 404, description: 'Product not found.' })
   @ApiResponse({ status: 400, description: 'Invalid hash.' })
   async getProductByHash(@Param('hash') hash: string) {

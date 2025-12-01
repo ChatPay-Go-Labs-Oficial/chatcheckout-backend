@@ -176,8 +176,8 @@ export class ProductService {
         relations: ['user'],
       });
 
-      if (!product) {
-        throw new NotFoundException('Product not found');
+      if (!product || !product.user) {
+        throw new NotFoundException('Product or associated user not found');
       }
 
       // Return only essential data

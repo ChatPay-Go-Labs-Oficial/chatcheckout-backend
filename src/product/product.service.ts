@@ -5,6 +5,7 @@ import { Product } from './product.entity';
 import { User } from 'src/user/user.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { ProductDecodeResponseDto } from './dto/product-decode-response.dto';
 import { UploadService } from 'src/upload/upload.service';
 import { ProductHashService } from './product-hash.service';
 
@@ -151,23 +152,7 @@ export class ProductService {
    * Returns product info and limited seller data.
    * The hash acts as a secure identifier but should not expose private seller details.
    */
-  async getProductByHash(hash: string): Promise<{
-    id: string;
-    name: string;
-    description: string;
-    price: number;
-    currency: string;
-    salesPageUrl: string;
-    imageUrl?: string;
-    promptAi?: string;
-    productHash: string | null;
-    infoproducer: {
-      id: string;
-      firstName: string;
-      lastName: string;
-      companyName?: string;
-    };
-  }> {
+  async getProductByHash(hash: string): Promise<ProductDecodeResponseDto> {
     try {
       const decoded = this.productHashService.decodeHash(hash);
 

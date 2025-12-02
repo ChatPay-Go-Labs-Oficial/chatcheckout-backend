@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './product.entity';
 import { User } from 'src/user/user.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { ProductDecodeResponseDto } from './dto/product-decode-response.dto';
 import { UploadService } from 'src/upload/upload.service';
 import { ProductHashService } from './product-hash.service';
 
@@ -43,11 +44,6 @@ export class ProductService {
       imageUrl = await this.uploadService.uploadFile(productImage);
     }
 
-    const productHash = this.productHashService.generateHash(
-      productUrl || '',
-      dto.promptAi || null,
-    );
-
     const product = this.productRepository.create({
       name: dto.name,
       price: dto.price,
@@ -57,11 +53,22 @@ export class ProductService {
       promptAi: dto.promptAi,
       productUrl,
       imageUrl,
-      productHash,
+      productHash: null, // Will be set after save
       user,
     });
 
-    return this.productRepository.save(product);
+    // Save first to get the product ID
+    const savedProduct = await this.productRepository.save(product);
+
+    // Generate final hash with real product ID (single save)
+    savedProduct.productHash = this.productHashService.generateHash(
+      savedProduct.id,
+      dto.salesPageUrl || '',
+      dto.promptAi || null,
+      userId,
+    );
+
+    return this.productRepository.save(savedProduct);
   }
 
   async findAll(
@@ -99,9 +106,29 @@ export class ProductService {
   }
 
   async update(id: string, dto: UpdateProductDto, userId: string): Promise<Product> {
-    const product = await this.productRepository.findOne({ where: { id, user: { id: userId } } });
+    const product = await this.productRepository.findOne({
+      where: { id, user: { id: userId } },
+    });
     if (!product) throw new NotFoundException('Product not found');
+
+    // Check if fields that affect hash are being updated
+    const hashFieldsChanged =
+      (dto.salesPageUrl !== undefined && dto.salesPageUrl !== product.salesPageUrl) ||
+      (dto.promptAi !== undefined && dto.promptAi !== product.promptAi);
+
     Object.assign(product, dto);
+
+    // Regenerate hash if relevant fields changed
+    if (hashFieldsChanged) {
+      const newHash = this.productHashService.generateHash(
+        product.id,
+        product.salesPageUrl || '',
+        product.promptAi || null,
+        userId,
+      );
+      product.productHash = newHash;
+    }
+
     return this.productRepository.save(product);
   }
 
@@ -111,7 +138,56 @@ export class ProductService {
     await this.productRepository.remove(product);
   }
 
-  decodeProductHash(hash: string): { productUrl: string; promptAI: string } {
+  decodeProductHash(hash: string): {
+    productId: string;
+    salesPageUrl: string;
+    promptAI: string;
+    userId: string;
+  } {
     return this.productHashService.decodeHash(hash);
+  }
+
+  /**
+   * Public endpoint used in checkout flow.
+   * Returns product info and limited seller data.
+   * The hash acts as a secure identifier but should not expose private seller details.
+   */
+  async getProductByHash(hash: string): Promise<ProductDecodeResponseDto> {
+    try {
+      const decoded = this.productHashService.decodeHash(hash);
+
+      const product = await this.productRepository.findOne({
+        where: { id: decoded.productId },
+        relations: ['user'],
+      });
+
+      if (!product || !product.user) {
+        throw new NotFoundException('Product or associated user not found');
+      }
+
+      // Return only essential data
+      return {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        currency: product.currency,
+        salesPageUrl: product.salesPageUrl,
+        imageUrl: product.imageUrl,
+        promptAi: product.promptAi,
+        productHash: product.productHash,
+        infoproducer: {
+          id: product.user.id,
+          firstName: product.user.firstName,
+          lastName: product.user.lastName,
+          companyName: product.user.companyName,
+        },
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('Invalid hash or decryption failed');
+    }
   }
 }

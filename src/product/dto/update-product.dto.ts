@@ -1,6 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Currency } from '../product.entity';
-import { IsOptional, IsNotEmpty, IsNumber, IsPositive, IsEnum, IsString } from 'class-validator';
+import {
+  IsOptional,
+  IsNotEmpty,
+  IsNumber,
+  IsPositive,
+  IsEnum,
+  IsString,
+  IsUrl,
+} from 'class-validator';
 
 export class UpdateProductDto {
   @ApiPropertyOptional()
@@ -23,4 +31,15 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUrl()
+  salesPageUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @ApiPropertyOptional()
+  promptAi?: string;
 }

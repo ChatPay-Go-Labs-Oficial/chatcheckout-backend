@@ -30,6 +30,9 @@ export class Order {
   @Column({ name: 'stripe_payment_intent_id', unique: true })
   stripePaymentIntentId: string;
 
+  @Column({ name: 'stripe_customer_id', nullable: true })
+  stripeCustomerId: string;
+
   @Column({
     type: 'enum',
     enum: OrderStatus,

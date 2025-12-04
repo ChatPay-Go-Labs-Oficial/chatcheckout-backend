@@ -62,18 +62,39 @@ export class PaymentService {
     const amount = Math.round(product.price * 100);
     const feeAmount = Math.round(amount * 0.03);
 
+    // Criar ou buscar customer no Stripe
+    const customer = await this.stripeService.findOrCreateCustomer(
+      customerData.email,
+      {
+        name: customerData.name,
+        phone: customerData.phone,
+        cpf: customerData.cpf,
+      }
+    );
+
+    // Criar Payment Intent com customer e metadata
     const paymentIntent = await this.stripeService.createPaymentIntent(
       amount,
       'brl',
       seller.stripeAccountId,
       feeAmount,
       paymentMethod,
+      customer.id,
+      {
+        product_name: product.name,
+        product_id: product.id,
+        seller_name: `${seller.firstName} ${seller.lastName}`,
+        customer_name: customerData.name,
+        customer_email: customerData.email,
+        customer_cpf: customerData.cpf,
+      }
     );
 
     const order = this.orderRepository.create({
       amount,
       feeAmount,
       stripePaymentIntentId: paymentIntent.id,
+      stripeCustomerId: customer.id,
       status: OrderStatus.PENDING,
       seller: seller,
       product: product,

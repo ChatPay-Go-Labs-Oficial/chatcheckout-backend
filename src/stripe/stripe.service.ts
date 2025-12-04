@@ -38,12 +38,39 @@ export class StripeService {
     return accountSession.client_secret;
   }
 
+  async findOrCreateCustomer(
+    email: string,
+    data: { name: string; phone: string; cpf: string },
+  ): Promise<Stripe.Customer> {
+    // Buscar customer existente por email
+    const existingCustomers = await this.stripe.customers.list({
+      email,
+      limit: 1,
+    });
+
+    if (existingCustomers.data.length > 0) {
+      return existingCustomers.data[0];
+    }
+
+    // Criar novo customer
+    return this.stripe.customers.create({
+      email,
+      name: data.name,
+      phone: data.phone,
+      metadata: {
+        cpf: data.cpf,
+      },
+    });
+  }
+
   async createPaymentIntent(
     amount: number,
     currency: string,
     destinationAccountId: string,
     feeAmount: number,
     paymentMethod?: 'pix' | 'card' | 'crypto',
+    customerId?: string,
+    metadata?: Record<string, string>,
   ): Promise<Stripe.PaymentIntent> {
     const paymentMethodTypes: string[] = [];
     
@@ -61,10 +88,21 @@ export class StripeService {
       currency,
       payment_method_types: paymentMethodTypes,
       application_fee_amount: feeAmount,
+      on_behalf_of: destinationAccountId,
       transfer_data: {
         destination: destinationAccountId,
       },
     };
+
+    // Adicionar customer se fornecido
+    if (customerId) {
+      intentData.customer = customerId;
+    }
+
+    // Adicionar metadata se fornecido
+    if (metadata) {
+      intentData.metadata = metadata;
+    }
 
     // Remove automatic_payment_methods when using specific payment_method_types
     if (paymentMethodTypes.length === 0) {

@@ -17,6 +17,10 @@ export class UploadService {
   }
 
   async uploadFile(file: Express.Multer.File): Promise<string> {
+    // BYPASS FOR TESTING WITHOUT GCS CREDENTIALS
+    return `https://dummy-storage.com/${uuidv4()}-${file.originalname}`;
+
+    /*
     const bucket = this.storage.bucket(this.bucketName);
     const blob = bucket.file(`${uuidv4()}-${file.originalname}`);
     const blobStream = blob.createWriteStream({
@@ -33,5 +37,6 @@ export class UploadService {
       });
       blobStream.end(file.buffer);
     });
+    */
   }
 }

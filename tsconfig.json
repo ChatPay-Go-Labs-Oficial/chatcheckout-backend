@@ -27,5 +27,6 @@
       "multer",
       "jest"
     ]
-  }
+  },
+  "include": ["src/**/*"]
 }

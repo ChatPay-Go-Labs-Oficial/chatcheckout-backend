@@ -29,6 +29,9 @@ describe('UserService', () => {
     role: UserRole.Infoproducer,
     companyName: undefined,
     cnpj: undefined,
+    stripeOnboardingCompleted: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
 
   const mockCreateUserDto: CreateUserDto = {

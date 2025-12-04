@@ -30,6 +30,7 @@ describe('AuthService', () => {
     role: UserRole.Infoproducer,
     companyName: undefined,
     cnpj: undefined,
+    stripeOnboardingCompleted: false,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

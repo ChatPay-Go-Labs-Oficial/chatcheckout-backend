@@ -23,6 +23,7 @@ export class StripeService {
       capabilities: {
         card_payments: { requested: true },
         transfers: { requested: true },
+        pix_payments: { requested: true },
       },
     });
   }
@@ -42,16 +43,35 @@ export class StripeService {
     currency: string,
     destinationAccountId: string,
     feeAmount: number,
+    paymentMethod?: 'pix' | 'card' | 'crypto',
   ): Promise<Stripe.PaymentIntent> {
-    return this.stripe.paymentIntents.create({
+    const paymentMethodTypes: string[] = [];
+    
+    if (paymentMethod === 'pix') {
+      paymentMethodTypes.push('pix');
+    } else if (paymentMethod === 'card') {
+      paymentMethodTypes.push('card');
+    } else {
+      // Default: enable both
+      paymentMethodTypes.push('card', 'pix');
+    }
+
+    const intentData: Stripe.PaymentIntentCreateParams = {
       amount,
       currency,
-      automatic_payment_methods: { enabled: true },
+      payment_method_types: paymentMethodTypes,
       application_fee_amount: feeAmount,
       transfer_data: {
         destination: destinationAccountId,
       },
-    });
+    };
+
+    // Remove automatic_payment_methods when using specific payment_method_types
+    if (paymentMethodTypes.length === 0) {
+      intentData.automatic_payment_methods = { enabled: true };
+    }
+
+    return this.stripe.paymentIntents.create(intentData);
   }
 
   constructEventFromPayload(signature: string, payload: Buffer): Stripe.Event {

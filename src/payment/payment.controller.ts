@@ -41,22 +41,45 @@ export class PaymentController {
   @ApiResponse({
     status: 201,
     description: 'Payment Intent created successfully.',
-    schema: { example: { clientSecret: 'pi_123_secret_456', orderId: 'uuid' } },
+    schema: { 
+      example: { 
+        clientSecret: 'pi_123_secret_456', 
+        orderId: 'uuid',
+        qrCode: 'https://...',
+        pixCode: '00020126580014br.gov.bcb.pix...'
+      } 
+    },
   })
   @ApiResponse({ status: 404, description: 'Product not found.' })
   @ApiBody({ type: CreatePaymentIntentDto })
   async createPaymentIntent(@Body() body: CreatePaymentIntentDto) {
-    return this.paymentService.createPaymentIntent(body.productId, 'anonymous');
+    return this.paymentService.createPaymentIntent(
+      body.productId,
+      'anonymous',
+      body.paymentMethod,
+      body.customerData,
+    );
   }
 
   @Post('webhook')
   @ApiOperation({ summary: 'Handle Stripe Webhooks' })
   @ApiResponse({ status: 201, description: 'Webhook processed.' })
   @ApiResponse({ status: 400, description: 'Missing signature.' })
-  async handleWebhook(@Headers('stripe-signature') signature: string, @Request() req) {
+  async handleWebhook(
+    @Headers('stripe-signature') signature: string, 
+    @Request() req: any
+  ) {
     if (!signature) {
       throw new BadRequestException('Missing stripe-signature header');
     }
+    
+    const rawBody = req.rawBody;
+    if (!rawBody) {
+      throw new BadRequestException('Raw body is required for webhook verification');
+    }
+    
+    await this.paymentService.handleStripeWebhook(signature, rawBody);
+    
     return { received: true };
   }
 }

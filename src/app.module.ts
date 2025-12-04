@@ -10,6 +10,9 @@ import { ChatAiModule } from './chat-ai/chat-ai.module';
 import { UploadModule } from './upload/upload.module';
 import { RedisModule } from './config/redis.module';
 import { dataSourceOptions } from './config/typeorm.config';
+import { StripeModule } from './stripe/stripe.module';
+import { OrderModule } from './order/order.module';
+import { PaymentModule } from './payment/payment.module';
 
 @Module({
   imports: [
@@ -31,6 +34,9 @@ import { dataSourceOptions } from './config/typeorm.config';
     ProductModule,
     ChatAiModule,
     UploadModule,
+    StripeModule,
+    OrderModule,
+    PaymentModule,
   ],
   providers: [
     {

@@ -46,6 +46,12 @@ export class User {
   @Column({ unique: true, nullable: true, length: 14 })
   cnpj?: string;
 
+  @Column({ name: 'stripe_account_id', nullable: true })
+  stripeAccountId?: string;
+
+  @Column({ name: 'stripe_onboarding_completed', default: false })
+  stripeOnboardingCompleted: boolean;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

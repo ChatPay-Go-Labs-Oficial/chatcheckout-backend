@@ -4,7 +4,7 @@ import {
   Body,
   Get,
   Param,
-  Put,
+  Patch,
   Delete,
   UseGuards,
   Req,
@@ -41,7 +41,7 @@ export class UserController {
     return this.userService.findById((req.user as { userId: string }).userId);
   }
 
-  @Put(':id')
+  @Patch(':id')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Update user' })
   @ApiResponse({ status: 200, description: 'User updated.' })

@@ -27,11 +27,6 @@ export class UserBusinessValidator {
     if (dto.password !== dto.confirmPassword) {
       throw new BadRequestException('As senhas não coincidem');
     }
-
-    // Validar que quando CNPJ é fornecido, nome da empresa também é obrigatório
-    if (dto.cnpj && !dto.companyName) {
-      throw new BadRequestException('Quando informado o CNPJ, o nome da empresa é obrigatório');
-    }
   }
 
   /**

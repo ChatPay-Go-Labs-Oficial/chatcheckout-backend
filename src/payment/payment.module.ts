@@ -9,11 +9,7 @@ import { StripeModule } from '../stripe/stripe.module';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([User, Product, Order]),
-    StripeModule,
-    AuthModule,
-  ],
+  imports: [TypeOrmModule.forFeature([User, Product, Order]), StripeModule, AuthModule],
   providers: [PaymentService],
   controllers: [PaymentController],
 })

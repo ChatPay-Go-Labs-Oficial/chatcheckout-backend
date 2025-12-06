@@ -20,7 +20,7 @@ export class PaymentController {
   constructor(
     private readonly paymentService: PaymentService,
     private readonly stripeService: StripeService,
-  ) { }
+  ) {}
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
@@ -41,13 +41,13 @@ export class PaymentController {
   @ApiResponse({
     status: 201,
     description: 'Payment Intent created successfully.',
-    schema: { 
-      example: { 
-        clientSecret: 'pi_123_secret_456', 
+    schema: {
+      example: {
+        clientSecret: 'pi_123_secret_456',
         orderId: 'uuid',
         qrCode: 'https://...',
-        pixCode: '00020126580014br.gov.bcb.pix...'
-      } 
+        pixCode: '00020126580014br.gov.bcb.pix...',
+      },
     },
   })
   @ApiResponse({ status: 404, description: 'Product not found.' })
@@ -65,21 +65,18 @@ export class PaymentController {
   @ApiOperation({ summary: 'Handle Stripe Webhooks' })
   @ApiResponse({ status: 201, description: 'Webhook processed.' })
   @ApiResponse({ status: 400, description: 'Missing signature.' })
-  async handleWebhook(
-    @Headers('stripe-signature') signature: string, 
-    @Request() req: any
-  ) {
+  async handleWebhook(@Headers('stripe-signature') signature: string, @Request() req: any) {
     if (!signature) {
       throw new BadRequestException('Missing stripe-signature header');
     }
-    
+
     const rawBody = req.rawBody;
     if (!rawBody) {
       throw new BadRequestException('Raw body is required for webhook verification');
     }
-    
+
     await this.paymentService.handleStripeWebhook(signature, rawBody);
-    
+
     return { received: true };
   }
 }

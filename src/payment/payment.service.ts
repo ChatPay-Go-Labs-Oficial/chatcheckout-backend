@@ -16,7 +16,7 @@ export class PaymentService {
     @InjectRepository(Order)
     private orderRepository: Repository<Order>,
     private stripeService: StripeService,
-  ) { }
+  ) {}
 
   async createAccountSession(userId: string): Promise<{ clientSecret: string }> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
@@ -63,14 +63,11 @@ export class PaymentService {
     const feeAmount = Math.round(amount * 0.03);
 
     // Criar ou buscar customer no Stripe
-    const customer = await this.stripeService.findOrCreateCustomer(
-      customerData.email,
-      {
-        name: customerData.name,
-        phone: customerData.phone,
-        cpf: customerData.cpf,
-      }
-    );
+    const customer = await this.stripeService.findOrCreateCustomer(customerData.email, {
+      name: customerData.name,
+      phone: customerData.phone,
+      cpf: customerData.cpf,
+    });
 
     // Criar Payment Intent com customer e metadata
     const paymentIntent = await this.stripeService.createPaymentIntent(
@@ -87,7 +84,7 @@ export class PaymentService {
         customer_name: customerData.name,
         customer_email: customerData.email,
         customer_cpf: customerData.cpf,
-      }
+      },
     );
 
     const order = this.orderRepository.create({

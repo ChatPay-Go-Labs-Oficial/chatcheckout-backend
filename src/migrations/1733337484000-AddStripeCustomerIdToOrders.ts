@@ -33,7 +33,7 @@ export class AddStripeCustomerIdToOrders1733337484000 implements MigrationInterf
     if (columnNames.includes('stripe_customer_id')) {
       // Remover índice
       await queryRunner.query(`DROP INDEX IF EXISTS "idx_orders_stripe_customer_id"`);
-      
+
       // Remover coluna
       await queryRunner.dropColumn('orders', 'stripe_customer_id');
     }

@@ -54,7 +54,7 @@ export class CnpjValidator {
       sum += parseInt(cleanCnpj.charAt(i)) * pos;
       pos = pos === 2 ? 9 : pos - 1;
     }
-    let firstVerifier = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+    const firstVerifier = sum % 11 < 2 ? 0 : 11 - (sum % 11);
 
     if (firstVerifier !== parseInt(cleanCnpj.charAt(12))) {
       return false;
@@ -67,7 +67,7 @@ export class CnpjValidator {
       sum += parseInt(cleanCnpj.charAt(i)) * pos;
       pos = pos === 2 ? 9 : pos - 1;
     }
-    let secondVerifier = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+    const secondVerifier = sum % 11 < 2 ? 0 : 11 - (sum % 11);
 
     if (secondVerifier !== parseInt(cleanCnpj.charAt(13))) {
       return false;

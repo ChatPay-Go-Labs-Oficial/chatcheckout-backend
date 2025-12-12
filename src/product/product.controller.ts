@@ -5,7 +5,7 @@ import {
   Get,
   UseGuards,
   Param,
-  Put,
+  Patch,
   Delete,
   Req,
   Query,
@@ -124,14 +124,53 @@ export class ProductController {
     return this.productService.findByUser(userId);
   }
 
-  @Put(':id')
+  @Patch(':id')
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'productFile', maxCount: 1 },
+      { name: 'productImage', maxCount: 1 },
+    ]),
+  )
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Update product' })
   @ApiResponse({ status: 200, description: 'Product updated.' })
   @ApiResponse({ status: 404, description: 'Product not found.' })
-  async update(@Param('id') id: string, @Req() req: Request, @Body() dto: UpdateProductDto) {
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', example: 'Updated Product' },
+        price: { type: 'number', example: 149.9 },
+        currency: { type: 'string', enum: ['BRL', 'XLM', 'USDC'] },
+        description: { type: 'string', example: 'New description' },
+        promptAi: { type: 'string', example: 'New prompt' },
+        salesPageUrl: { type: 'string', example: 'https://mysite.com/new-product' },
+        productFile: {
+          type: 'string',
+          format: 'binary',
+          description: 'New product file (optional)',
+        },
+        productImage: {
+          type: 'string',
+          format: 'binary',
+          description: 'New product image (optional)',
+        },
+      },
+    },
+  })
+  async update(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Body() dto: UpdateProductDto,
+    @UploadedFiles()
+    files?: { productFile?: Express.Multer.File[]; productImage?: Express.Multer.File[] },
+  ) {
     const userId = (req.user as { userId: string }).userId;
-    return this.productService.update(id, dto, userId);
+    const productFile = files?.productFile?.[0];
+    const productImage = files?.productImage?.[0];
+
+    return this.productService.update(id, dto, userId, productFile, productImage);
   }
 
   @Delete(':id')

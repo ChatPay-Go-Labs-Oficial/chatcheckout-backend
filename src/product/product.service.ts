@@ -105,7 +105,13 @@ export class ProductService {
     });
   }
 
-  async update(id: string, dto: UpdateProductDto, userId: string): Promise<Product> {
+  async update(
+    id: string,
+    dto: UpdateProductDto,
+    userId: string,
+    productFile?: Express.Multer.File,
+    productImage?: Express.Multer.File,
+  ): Promise<Product> {
     const product = await this.productRepository.findOne({
       where: { id, user: { id: userId } },
     });
@@ -116,7 +122,21 @@ export class ProductService {
       (dto.salesPageUrl !== undefined && dto.salesPageUrl !== product.salesPageUrl) ||
       (dto.promptAi !== undefined && dto.promptAi !== product.promptAi);
 
-    Object.assign(product, dto);
+    const updateData: UpdateProductDto & { productUrl?: string; imageUrl?: string } = { ...dto };
+
+    // Upload new product file (if provided)
+    if (productFile) {
+      const productUrl = await this.uploadService.uploadFile(productFile);
+      updateData.productUrl = productUrl;
+    }
+
+    // Upload new image (if provided)
+    if (productImage) {
+      const imageUrl = await this.uploadService.uploadFile(productImage);
+      updateData.imageUrl = imageUrl;
+    }
+
+    Object.assign(product, updateData);
 
     // Regenerate hash if relevant fields changed
     if (hashFieldsChanged) {

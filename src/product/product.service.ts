@@ -126,12 +126,18 @@ export class ProductService {
 
     // Upload new product file (if provided)
     if (productFile) {
+      if (product.productUrl) {
+        await this.uploadService.deleteFile(product.productUrl);
+      }
       const productUrl = await this.uploadService.uploadFile(productFile);
       updateData.productUrl = productUrl;
     }
 
     // Upload new image (if provided)
     if (productImage) {
+      if (product.imageUrl) {
+        await this.uploadService.deleteFile(product.imageUrl);
+      }
       const imageUrl = await this.uploadService.uploadFile(productImage);
       updateData.imageUrl = imageUrl;
     }

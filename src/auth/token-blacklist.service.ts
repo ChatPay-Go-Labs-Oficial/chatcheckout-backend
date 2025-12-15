@@ -31,7 +31,6 @@ export class TokenBlacklistService {
     // Se não informar TTL, calcula baseado na expiração do token
     if (!finalTtl) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const decoded: any = this.jwtService.decode(token);
         if (decoded && typeof decoded === 'object' && 'exp' in decoded) {
           const now = Math.floor(Date.now() / 1000);

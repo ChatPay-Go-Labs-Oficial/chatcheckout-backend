@@ -40,6 +40,5 @@ export class UpdateProductDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @ApiPropertyOptional()
   promptAi?: string;
 }

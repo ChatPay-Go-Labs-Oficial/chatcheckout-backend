@@ -23,7 +23,7 @@ export class StripeService {
       capabilities: {
         card_payments: { requested: true },
         transfers: { requested: true },
-        pix_payments: { requested: true },
+        // pix_payments: { requested: true },
       },
     });
   }
@@ -73,7 +73,7 @@ export class StripeService {
     metadata?: Record<string, string>,
   ): Promise<Stripe.PaymentIntent> {
     const paymentMethodTypes: string[] = [];
-    
+
     if (paymentMethod === 'pix') {
       paymentMethodTypes.push('pix');
     } else if (paymentMethod === 'card') {
@@ -117,10 +117,6 @@ export class StripeService {
     if (!webhookSecret) {
       throw new Error('STRIPE_WEBHOOK_SECRET not defined');
     }
-    return this.stripe.webhooks.constructEvent(
-      payload,
-      signature,
-      webhookSecret,
-    );
+    return this.stripe.webhooks.constructEvent(payload, signature, webhookSecret);
   }
 }

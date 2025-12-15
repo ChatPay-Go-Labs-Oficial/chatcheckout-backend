@@ -1,6 +1,6 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -63,6 +63,27 @@ export class UploadService {
       throw new InternalServerErrorException(
         `Failed to upload file to R2: ${(error as Error).message}`,
       );
+    }
+  }
+
+  async deleteFile(fileUrl: string): Promise<void> {
+    try {
+      // Extract Key from URL
+      // URL format: https://<public_url>/<key>
+      const urlParts = fileUrl.split('/');
+      const key = urlParts[urlParts.length - 1];
+
+      if (!key) return;
+
+      const command = new DeleteObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+      });
+
+      await this.s3Client.send(command);
+    } catch (error) {
+      console.error(`Failed to delete file ${fileUrl}:`, error);
+      // We do not throw here to avoid blocking the update process
     }
   }
 }

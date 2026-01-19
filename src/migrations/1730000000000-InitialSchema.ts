@@ -1,9 +1,10 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class InitialSchema1764710383574 implements MigrationInterface {
-  name = 'InitialSchema1764710383574';
+export class InitialSchema1730000000000 implements MigrationInterface {
+  name = 'InitialSchema1730000000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
     await queryRunner.query(
       `CREATE TYPE "public"."users_role_enum" AS ENUM('infoproducer', 'client')`,
     );

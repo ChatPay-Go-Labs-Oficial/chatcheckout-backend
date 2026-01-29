@@ -26,6 +26,8 @@ import {
   ApiConsumes,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ResourceOwnerGuard, OwnerParam } from '../common/guards';
+import { ProductOwnerGuard } from './guards';
 import type { Request } from 'express';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 
@@ -117,15 +119,17 @@ export class ProductController {
   }
 
   @Get('user/:userId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ResourceOwnerGuard)
+  @OwnerParam('userId')
   @ApiOperation({ summary: 'List products by user' })
   @ApiResponse({ status: 200, description: 'List of user products.' })
+  @ApiResponse({ status: 403, description: 'Forbidden - You can only view your own products.' })
   async findByUser(@Param('userId') userId: string) {
     return this.productService.findByUser(userId);
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ProductOwnerGuard)
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'productFile', maxCount: 1 },
@@ -135,6 +139,7 @@ export class ProductController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Update product' })
   @ApiResponse({ status: 200, description: 'Product updated.' })
+  @ApiResponse({ status: 403, description: 'Forbidden - You can only update your own products.' })
   @ApiResponse({ status: 404, description: 'Product not found.' })
   @ApiBody({
     schema: {
@@ -174,9 +179,10 @@ export class ProductController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ProductOwnerGuard)
   @ApiOperation({ summary: 'Delete product' })
   @ApiResponse({ status: 200, description: 'Product deleted.' })
+  @ApiResponse({ status: 403, description: 'Forbidden - You can only delete your own products.' })
   @ApiResponse({ status: 404, description: 'Product not found.' })
   async remove(@Param('id') id: string, @Req() req: Request) {
     const userId = (req.user as { userId: string }).userId;

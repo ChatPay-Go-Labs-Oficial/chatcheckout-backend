@@ -112,8 +112,10 @@ export class ProductService {
     productFile?: Express.Multer.File,
     productImage?: Express.Multer.File,
   ): Promise<Product> {
+    // Note: Ownership verification is now handled by ProductOwnerGuard in the controller
     const product = await this.productRepository.findOne({
-      where: { id, user: { id: userId } },
+      where: { id },
+      relations: ['user'],
     });
     if (!product) throw new NotFoundException('Product not found');
 
@@ -159,7 +161,11 @@ export class ProductService {
   }
 
   async remove(id: string, userId: string): Promise<void> {
-    const product = await this.productRepository.findOne({ where: { id, user: { id: userId } } });
+    // Note: Ownership verification is now handled by ProductOwnerGuard in the controller
+    const product = await this.productRepository.findOne({
+      where: { id },
+      relations: ['user'],
+    });
     if (!product) throw new NotFoundException('Product not found');
     await this.productRepository.remove(product);
   }

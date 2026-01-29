@@ -15,6 +15,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ResourceOwnerGuard } from '../common/guards/resource-owner.guard';
 import type { Request } from 'express';
 
 @ApiTags('user')
@@ -42,17 +43,19 @@ export class UserController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ResourceOwnerGuard)
   @ApiOperation({ summary: 'Update user' })
   @ApiResponse({ status: 200, description: 'User updated.' })
+  @ApiResponse({ status: 403, description: 'Forbidden - You can only update your own account.' })
   async update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
     return this.userService.update(id, dto);
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ResourceOwnerGuard)
   @ApiOperation({ summary: 'Delete user' })
   @ApiResponse({ status: 200, description: 'User deleted.' })
+  @ApiResponse({ status: 403, description: 'Forbidden - You can only delete your own account.' })
   async remove(@Param('id') id: string) {
     await this.userService.remove(id);
     return { message: 'User deleted successfully.' };

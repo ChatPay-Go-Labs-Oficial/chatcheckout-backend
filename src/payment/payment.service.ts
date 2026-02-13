@@ -3,8 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../user/user.entity';
 import { Product } from '../product/product.entity';
-import { Order, OrderStatus } from '../order/order.entity';
+import { Order, OrderStatus, PaymentMethod } from '../order/order.entity';
 import { StripeService } from '../stripe/stripe.service';
+import { StripeTransaction, StripeTransactionStatus } from './stripe-transaction.entity';
+import { SellerLedgerEntry, SellerLedgerEntryType } from './seller-ledger-entry.entity';
 
 @Injectable()
 export class PaymentService {
@@ -15,6 +17,10 @@ export class PaymentService {
     private productRepository: Repository<Product>,
     @InjectRepository(Order)
     private orderRepository: Repository<Order>,
+    @InjectRepository(StripeTransaction)
+    private stripeTransactionRepository: Repository<StripeTransaction>,
+    @InjectRepository(SellerLedgerEntry)
+    private sellerLedgerRepository: Repository<SellerLedgerEntry>,
     private stripeService: StripeService,
   ) {}
 
@@ -87,17 +93,32 @@ export class PaymentService {
       },
     );
 
-    const order = this.orderRepository.create({
-      amount,
-      feeAmount,
-      stripePaymentIntentId: paymentIntent.id,
-      stripeCustomerId: customer.id,
-      status: OrderStatus.PENDING,
-      seller: seller,
-      product: product,
-    });
+    const order = await this.orderRepository.save(
+      this.orderRepository.create({
+        sellerId: seller.id,
+        seller,
+        productId: product.id,
+        product,
+        totalAmount: amount,
+        feeAmount,
+        paymentMethod: PaymentMethod.STRIPE,
+        status: OrderStatus.CREATED,
+        attemptCount: 1,
+      }),
+    );
 
-    await this.orderRepository.save(order);
+    // Registrar tentativa de pagamento Stripe
+    await this.stripeTransactionRepository.save(
+      this.stripeTransactionRepository.create({
+        orderId: order.id,
+        order,
+        stripePaymentIntentId: paymentIntent.id,
+        stripeCustomerId: customer.id,
+        amount,
+        feeAmount,
+        status: StripeTransactionStatus.PAYMENT_PENDING,
+      }),
+    );
 
     const response: { clientSecret: string; orderId: string; qrCode?: string; pixCode?: string } = {
       clientSecret: paymentIntent.client_secret!,
@@ -130,26 +151,78 @@ export class PaymentService {
   }
 
   private async handlePaymentIntentSucceeded(paymentIntent: any): Promise<void> {
-    const order = await this.orderRepository.findOne({
+    const stripeTx = await this.stripeTransactionRepository.findOne({
       where: { stripePaymentIntentId: paymentIntent.id },
+      relations: ['order', 'order.product'],
     });
 
-    if (order) {
-      order.status = OrderStatus.COMPLETED;
-      await this.orderRepository.save(order);
-      console.log(`Order ${order.id} marked as COMPLETED`);
+    if (!stripeTx) {
+      console.log(`StripeTransaction not found for paymentIntent ${paymentIntent.id}`);
+      return;
     }
+
+    stripeTx.status = StripeTransactionStatus.COMPLETED;
+    await this.stripeTransactionRepository.save(stripeTx);
+
+    const order = stripeTx.order;
+    order.status = OrderStatus.COMPLETED;
+    await this.orderRepository.save(order);
+
+    // Ledger: SALE_CREDIT e PLATFORM_FEE
+    const seller = await this.userRepository.findOne({ where: { id: order.sellerId } });
+    if (!seller) {
+      console.log(`Seller not found for order ${order.id}`);
+      return;
+    }
+
+    // Para simplificar, não estamos calculando saldo anterior; apenas repetindo balanceAfter = amount - fee / -fee.
+    const netAmount = order.totalAmount - order.feeAmount;
+    const currency = order.product?.currency || 'BRL';
+
+    await this.sellerLedgerRepository.save([
+      this.sellerLedgerRepository.create({
+        sellerId: seller.id,
+        seller,
+        orderId: order.id,
+        order,
+        type: SellerLedgerEntryType.SALE_CREDIT,
+        amount: netAmount,
+        currency,
+        balanceAfter: netAmount,
+      }),
+      this.sellerLedgerRepository.create({
+        sellerId: seller.id,
+        seller,
+        orderId: order.id,
+        order,
+        type: SellerLedgerEntryType.PLATFORM_FEE,
+        amount: order.feeAmount,
+        currency,
+        balanceAfter: netAmount - order.feeAmount,
+      }),
+    ]);
+
+    console.log(`Order ${order.id} marked as COMPLETED and ledger entries created`);
   }
 
   private async handlePaymentIntentFailed(paymentIntent: any): Promise<void> {
-    const order = await this.orderRepository.findOne({
+    const stripeTx = await this.stripeTransactionRepository.findOne({
       where: { stripePaymentIntentId: paymentIntent.id },
+      relations: ['order'],
     });
 
-    if (order) {
-      order.status = OrderStatus.FAILED;
-      await this.orderRepository.save(order);
-      console.log(`Order ${order.id} marked as FAILED`);
+    if (!stripeTx) {
+      console.log(`StripeTransaction not found for failed paymentIntent ${paymentIntent.id}`);
+      return;
     }
+
+    stripeTx.status = StripeTransactionStatus.FAILED;
+    await this.stripeTransactionRepository.save(stripeTx);
+
+    const order = stripeTx.order;
+    order.status = OrderStatus.FAILED;
+    await this.orderRepository.save(order);
+
+    console.log(`Order ${order.id} marked as FAILED`);
   }
 }

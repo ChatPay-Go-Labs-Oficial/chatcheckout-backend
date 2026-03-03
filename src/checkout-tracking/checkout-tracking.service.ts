@@ -94,6 +94,19 @@ export class CheckoutTrackingService {
       throw new BadRequestException('Invalid occurredAt date');
     }
 
+    if (dto.eventType === CheckoutEventType.CHECKOUT_ABANDONED) {
+      const existingAbandonment = await this.eventRepository.findOne({
+        where: {
+          sessionId: session.id,
+          eventType: CheckoutEventType.CHECKOUT_ABANDONED,
+        },
+      });
+
+      if (existingAbandonment) {
+        return { accepted: true };
+      }
+    }
+
     await this.eventRepository.save(
       this.eventRepository.create({
         sessionId: session.id,

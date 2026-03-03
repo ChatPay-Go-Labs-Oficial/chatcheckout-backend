@@ -8,6 +8,7 @@ import {
 } from '../checkout-tracking/checkout-tracking.enums';
 import { CheckoutTrackingSession } from '../checkout-tracking/checkout-tracking-session.entity';
 import { Order, OrderStatus } from '../order/order.entity';
+import { Product } from '../product/product.entity';
 import { CheckoutDashboardQueryDto } from './dto/checkout-dashboard-query.dto';
 
 @Injectable()
@@ -57,9 +58,33 @@ export class DashboardService {
         totalFeeAmount: string;
       }>();
 
-    const totalOrders = Number(completedOrders?.totalOrders ?? 0);
-    const totalAmount = Number(completedOrders?.totalAmount ?? 0);
+    const cryptoSucceededFromTracking = await this.applyEventFilters(
+      this.eventRepository
+        .createQueryBuilder('event')
+        .leftJoin(Product, 'product', 'product.id = event."product_id"')
+        .where('event.sellerId = :sellerId', { sellerId })
+        .andWhere('event.eventType = :eventType', {
+          eventType: CheckoutEventType.PAYMENT_SUCCEEDED,
+        })
+        .andWhere('event."payment_method" = :paymentMethod', {
+          paymentMethod: CheckoutEventPaymentMethod.CRYPTO,
+        }),
+      { startDate, endDate, productId },
+    )
+      .select('COUNT(event.id)', 'totalOrders')
+      .addSelect(
+        `COALESCE(SUM(COALESCE((event.metadata ->> 'totalAmountCents')::numeric, ROUND(product.price * 100))), 0)`,
+        'totalAmount',
+      )
+      .getRawOne<{ totalOrders: string; totalAmount: string }>();
+
+    const orderTableTotalOrders = Number(completedOrders?.totalOrders ?? 0);
+    const orderTableTotalAmount = Number(completedOrders?.totalAmount ?? 0);
     const totalFeeAmount = Number(completedOrders?.totalFeeAmount ?? 0);
+    const cryptoExtraOrders = Number(cryptoSucceededFromTracking?.totalOrders ?? 0);
+    const cryptoExtraAmount = Number(cryptoSucceededFromTracking?.totalAmount ?? 0);
+    const totalOrders = orderTableTotalOrders + cryptoExtraOrders;
+    const totalAmount = orderTableTotalAmount + cryptoExtraAmount;
     const conversionRate = sessionsCount > 0 ? (conversionsCount / sessionsCount) * 100 : 0;
     const avgTicket = totalOrders > 0 ? totalAmount / totalOrders : 0;
 

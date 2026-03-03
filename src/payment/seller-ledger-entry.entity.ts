@@ -53,4 +53,3 @@ export class SellerLedgerEntry {
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }
-

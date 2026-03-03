@@ -30,7 +30,7 @@ export class StripeTransaction {
   @Column({ name: 'stripe_payment_intent_id', unique: true })
   stripePaymentIntentId: string;
 
-  @Column({ name: 'stripe_customer_id', nullable: true })
+  @Column({ name: 'stripe_customer_id', type: 'varchar', nullable: true })
   stripeCustomerId: string | null;
 
   @Column({ name: 'amount' })
@@ -52,4 +52,3 @@ export class StripeTransaction {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }
-

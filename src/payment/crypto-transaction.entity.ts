@@ -69,7 +69,7 @@ export class CryptoTransaction {
   })
   planType: PlanType;
 
-  @Column({ name: 'blockchain_hash', nullable: true })
+  @Column({ name: 'blockchain_hash', type: 'varchar', nullable: true })
   blockchainHash: string | null;
 
   @Column({ name: 'unlock_timestamp', type: 'bigint', nullable: true })
@@ -94,4 +94,3 @@ export class CryptoTransaction {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }
-

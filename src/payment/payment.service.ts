@@ -7,6 +7,8 @@ import { Order, OrderStatus, PaymentMethod } from '../order/order.entity';
 import { StripeService } from '../stripe/stripe.service';
 import { StripeTransaction, StripeTransactionStatus } from './stripe-transaction.entity';
 import { SellerLedgerEntry, SellerLedgerEntryType } from './seller-ledger-entry.entity';
+import { CheckoutTrackingService } from '../checkout-tracking/checkout-tracking.service';
+import { CheckoutEventType } from '../checkout-tracking/checkout-tracking.enums';
 
 @Injectable()
 export class PaymentService {
@@ -22,6 +24,7 @@ export class PaymentService {
     @InjectRepository(SellerLedgerEntry)
     private sellerLedgerRepository: Repository<SellerLedgerEntry>,
     private stripeService: StripeService,
+    private checkoutTrackingService: CheckoutTrackingService,
   ) {}
 
   async createAccountSession(userId: string): Promise<{ clientSecret: string }> {
@@ -120,6 +123,19 @@ export class PaymentService {
       }),
     );
 
+    await this.checkoutTrackingService.recordBackendEvent({
+      productId: product.id,
+      sellerId: seller.id,
+      orderId: order.id,
+      eventType: CheckoutEventType.PAYMENT_INTENT_CREATED,
+      metadata: {
+        stripePaymentIntentId: paymentIntent.id,
+        feeAmount,
+        totalAmount: amount,
+        paymentMethod,
+      },
+    });
+
     const response: { clientSecret: string; orderId: string; qrCode?: string; pixCode?: string } = {
       clientSecret: paymentIntent.client_secret!,
       orderId: order.id,
@@ -203,6 +219,17 @@ export class PaymentService {
     ]);
 
     console.log(`Order ${order.id} marked as COMPLETED and ledger entries created`);
+
+    await this.checkoutTrackingService.recordBackendEvent({
+      productId: order.productId,
+      sellerId: order.sellerId,
+      orderId: order.id,
+      eventType: CheckoutEventType.PAYMENT_SUCCEEDED,
+      status: StripeTransactionStatus.COMPLETED,
+      metadata: {
+        stripePaymentIntentId: stripeTx.stripePaymentIntentId,
+      },
+    });
   }
 
   private async handlePaymentIntentFailed(paymentIntent: any): Promise<void> {
@@ -224,5 +251,16 @@ export class PaymentService {
     await this.orderRepository.save(order);
 
     console.log(`Order ${order.id} marked as FAILED`);
+
+    await this.checkoutTrackingService.recordBackendEvent({
+      productId: order.productId,
+      sellerId: order.sellerId,
+      orderId: order.id,
+      eventType: CheckoutEventType.PAYMENT_FAILED,
+      status: StripeTransactionStatus.FAILED,
+      metadata: {
+        stripePaymentIntentId: stripeTx.stripePaymentIntentId,
+      },
+    });
   }
 }

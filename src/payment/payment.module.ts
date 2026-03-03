@@ -10,6 +10,7 @@ import { AuthModule } from '../auth/auth.module';
 import { StripeTransaction } from './stripe-transaction.entity';
 import { CryptoTransaction } from './crypto-transaction.entity';
 import { SellerLedgerEntry } from './seller-ledger-entry.entity';
+import { CheckoutTrackingModule } from '../checkout-tracking/checkout-tracking.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { SellerLedgerEntry } from './seller-ledger-entry.entity';
     ]),
     StripeModule,
     AuthModule,
+    CheckoutTrackingModule,
   ],
   providers: [PaymentService],
   controllers: [PaymentController],

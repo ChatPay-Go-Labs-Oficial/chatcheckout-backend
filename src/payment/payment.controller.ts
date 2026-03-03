@@ -4,23 +4,26 @@ import {
   Body,
   UseGuards,
   Request,
-  Get,
   Headers,
   BadRequestException,
 } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { StripeService } from '../stripe/stripe.service';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiBody,
+  ApiBadRequestResponse,
+  ApiHeader,
+} from '@nestjs/swagger';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 
 @ApiTags('payment')
 @Controller('payment')
 export class PaymentController {
-  constructor(
-    private readonly paymentService: PaymentService,
-    private readonly stripeService: StripeService,
-  ) {}
+  constructor(private readonly paymentService: PaymentService) {}
 
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
@@ -31,7 +34,9 @@ export class PaymentController {
     description: 'Account session created successfully.',
     schema: { example: { clientSecret: 'eas_123...' } },
   })
+  @ApiBadRequestResponse({ description: 'Seller is not ready to receive payments.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 404, description: 'User not found.' })
   async createAccountSession(@Request() req) {
     return this.paymentService.createAccountSession(req.user.userId);
   }
@@ -50,6 +55,9 @@ export class PaymentController {
       },
     },
   })
+  @ApiBadRequestResponse({
+    description: 'Seller is not ready to receive payments or invalid payload.',
+  })
   @ApiResponse({ status: 404, description: 'Product not found.' })
   @ApiBody({ type: CreatePaymentIntentDto })
   async createPaymentIntent(@Body() body: CreatePaymentIntentDto) {
@@ -63,8 +71,16 @@ export class PaymentController {
 
   @Post('webhook')
   @ApiOperation({ summary: 'Handle Stripe Webhooks' })
+  @ApiHeader({
+    name: 'stripe-signature',
+    required: true,
+    description: 'Stripe webhook signature header used to validate the payload.',
+    schema: { type: 'string' },
+  })
   @ApiResponse({ status: 201, description: 'Webhook processed.' })
-  @ApiResponse({ status: 400, description: 'Missing signature.' })
+  @ApiBadRequestResponse({
+    description: 'Missing signature or raw body for webhook verification.',
+  })
   async handleWebhook(@Headers('stripe-signature') signature: string, @Request() req: any) {
     if (!signature) {
       throw new BadRequestException('Missing stripe-signature header');

@@ -214,6 +214,7 @@ export class ProductService {
           lastName: product.user.lastName,
           companyName: product.user.companyName,
         },
+        cryptoPaymentsEnabled: Boolean(product.user.cryptoWalletAddress),
       };
     } catch (error) {
       if (error instanceof NotFoundException) {

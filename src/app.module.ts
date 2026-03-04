@@ -15,6 +15,7 @@ import { OrderModule } from './order/order.module';
 import { PaymentModule } from './payment/payment.module';
 import { CheckoutTrackingModule } from './checkout-tracking/checkout-tracking.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { SellerModule } from './seller/seller.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     PaymentModule,
     CheckoutTrackingModule,
     DashboardModule,
+    SellerModule,
   ],
   providers: [
     {

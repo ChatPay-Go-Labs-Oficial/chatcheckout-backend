@@ -66,8 +66,9 @@ export class CryptoTransaction {
     name: 'plan_type',
     type: 'enum',
     enum: PlanType,
+    nullable: true,
   })
-  planType: PlanType;
+  planType: PlanType | null;
 
   @Column({ name: 'blockchain_hash', type: 'varchar', nullable: true })
   blockchainHash: string | null;

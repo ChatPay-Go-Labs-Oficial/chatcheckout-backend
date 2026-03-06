@@ -1,7 +1,17 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
-import { Order, OrderStatus } from './order.entity';
+import {
+  StripePaymentMethodType,
+  StripeTransaction,
+} from '../payment/stripe-transaction.entity';
+import {
+  FindSalesQueryDto,
+  SalesPaymentType,
+  SalesSortBy,
+  SortOrder,
+} from './dto/find-sales-query.dto';
+import { Order, OrderStatus, PaymentMethod } from './order.entity';
 
 export interface OrderListResult {
   data: Order[];
@@ -17,11 +27,32 @@ export interface OrderSummaryResult {
   netAmount: number;
 }
 
+export interface SalesListItem {
+  orderId: string;
+  createdAt: Date;
+  productName: string;
+  totalAmount: number;
+  feeAmount: number;
+  netAmount: number;
+  status: OrderStatus;
+  paymentType: SalesPaymentType;
+}
+
+export interface SalesListResult {
+  data: SalesListItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 @Injectable()
 export class OrderService {
   constructor(
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
+    @InjectRepository(StripeTransaction)
+    private readonly stripeTransactionRepository: Repository<StripeTransaction>,
   ) {}
 
   async findMyOrders(
@@ -46,6 +77,93 @@ export class OrderService {
       total,
       page,
       limit,
+    };
+  }
+
+  async findMySales(sellerId: string, query: FindSalesQueryDto): Promise<SalesListResult> {
+    const {
+      page = 1,
+      limit = 10,
+      paymentType,
+      startDate,
+      endDate,
+      sortBy = SalesSortBy.CREATED_AT,
+      sortOrder = SortOrder.DESC,
+    } = query;
+
+    const baseQuery = this.orderRepository
+      .createQueryBuilder('order')
+      .leftJoin(StripeTransaction, 'stripeTx', 'stripeTx.orderId = order.id')
+      .where('order.sellerId = :sellerId', { sellerId });
+
+    if (startDate) {
+      baseQuery.andWhere('order.createdAt >= :startDate', { startDate: new Date(startDate) });
+    }
+
+    if (endDate) {
+      baseQuery.andWhere('order.createdAt <= :endDate', { endDate: new Date(endDate) });
+    }
+
+    if (paymentType === SalesPaymentType.CRYPTO) {
+      baseQuery.andWhere('order.paymentMethod = :cryptoMethod', {
+        cryptoMethod: PaymentMethod.CRYPTO,
+      });
+    } else if (paymentType === SalesPaymentType.PIX || paymentType === SalesPaymentType.CARD) {
+      baseQuery
+        .andWhere('order.paymentMethod = :stripeMethod', {
+          stripeMethod: PaymentMethod.STRIPE,
+        })
+        .andWhere('stripeTx.paymentMethodType = :stripePaymentType', {
+          stripePaymentType: paymentType,
+        });
+    }
+
+    const salesQuery = baseQuery
+      .clone()
+      .leftJoinAndSelect('order.product', 'product')
+      .addSelect('stripeTx.paymentMethodType', 'stripeMethodType');
+
+    if (sortBy === SalesSortBy.TOTAL_AMOUNT) {
+      salesQuery.orderBy('order.totalAmount', sortOrder.toUpperCase() as 'ASC' | 'DESC');
+    } else {
+      salesQuery.orderBy('order.createdAt', sortOrder.toUpperCase() as 'ASC' | 'DESC');
+    }
+
+    const totalResult = await baseQuery
+      .clone()
+      .select('COUNT(DISTINCT order.id)', 'total')
+      .orderBy()
+      .getRawOne<{ total: string }>();
+
+    const total = Number(totalResult?.total ?? 0);
+
+    const { entities, raw } = await salesQuery
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getRawAndEntities();
+
+    const data: SalesListItem[] = entities.map((order, index) => {
+      const rawRow = raw[index] as { stripeMethodType?: StripePaymentMethodType };
+      const paymentTypeValue = this.mapOrderPaymentType(order.paymentMethod, rawRow?.stripeMethodType);
+
+      return {
+        orderId: order.id,
+        createdAt: order.createdAt,
+        productName: order.product?.name ?? 'Produto',
+        totalAmount: order.totalAmount,
+        feeAmount: order.feeAmount,
+        netAmount: order.totalAmount - order.feeAmount,
+        status: order.status,
+        paymentType: paymentTypeValue,
+      };
+    });
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: total > 0 ? Math.ceil(total / limit) : 0,
     };
   }
 
@@ -92,6 +210,21 @@ export class OrderService {
     }
 
     return order;
+  }
+
+  private mapOrderPaymentType(
+    paymentMethod: PaymentMethod,
+    stripePaymentType?: StripePaymentMethodType,
+  ): SalesPaymentType {
+    if (paymentMethod === PaymentMethod.CRYPTO) {
+      return SalesPaymentType.CRYPTO;
+    }
+
+    if (stripePaymentType === StripePaymentMethodType.PIX) {
+      return SalesPaymentType.PIX;
+    }
+
+    return SalesPaymentType.CARD;
   }
 
   private buildSellerOrdersQuery(

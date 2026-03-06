@@ -11,6 +11,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@ne
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FindOrdersQueryDto } from './dto/find-orders-query.dto';
+import { FindSalesQueryDto } from './dto/find-sales-query.dto';
 import { OrderService } from './order.service';
 
 @ApiTags('order')
@@ -61,6 +62,22 @@ export class OrderController {
       query.startDate,
       query.endDate,
     );
+  }
+
+  @Get('my/sales')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'List authenticated seller sales with filters and pagination' })
+  @ApiResponse({
+    status: 200,
+    description: 'Sales retrieved successfully.',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async findMySales(@Req() req: Request, @Query() query: FindSalesQueryDto) {
+    if (!req.user || !('userId' in req.user)) {
+      throw new UnauthorizedException('User not authenticated');
+    }
+
+    return this.orderService.findMySales((req.user as { userId: string }).userId, query);
   }
 
   @Get('my/summary')

@@ -32,7 +32,7 @@ export class DashboardService {
       { startDate, endDate, productId },
     ).getCount();
 
-    const conversionsCount = await this.applyEventFilters(
+    const conversionsCountResult = await this.applyEventFilters(
       this.eventRepository
         .createQueryBuilder('event')
         .where('event.sellerId = :sellerId', { sellerId })
@@ -40,7 +40,10 @@ export class DashboardService {
           eventType: CheckoutEventType.PAYMENT_SUCCEEDED,
         }),
       { startDate, endDate, productId },
-    ).getCount();
+    )
+      .select('COUNT(DISTINCT event.session_id)', 'count')
+      .getRawOne<{ count: string }>();
+    const conversionsCount = Number(conversionsCountResult?.count ?? 0);
 
     const completedOrders = await this.applyOrderFilters(
       this.orderRepository

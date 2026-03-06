@@ -11,7 +11,11 @@ import { User } from '../user/user.entity';
 import { Product } from '../product/product.entity';
 import { Order, OrderStatus, PaymentMethod } from '../order/order.entity';
 import { StripeService } from '../stripe/stripe.service';
-import { StripeTransaction, StripeTransactionStatus } from './stripe-transaction.entity';
+import {
+  StripeTransaction,
+  StripeTransactionStatus,
+  StripePaymentMethodType,
+} from './stripe-transaction.entity';
 import { SellerLedgerEntry, SellerLedgerEntryType } from './seller-ledger-entry.entity';
 import { CryptoTransaction, CryptoTransactionStatus, TokenSymbol } from './crypto-transaction.entity';
 import { CheckoutTrackingService } from '../checkout-tracking/checkout-tracking.service';
@@ -123,6 +127,9 @@ export class PaymentService {
       }),
     );
 
+    const stripePaymentMethodType =
+      paymentMethod === 'pix' ? StripePaymentMethodType.PIX : StripePaymentMethodType.CARD;
+
     // Registrar tentativa de pagamento Stripe
     await this.stripeTransactionRepository.save(
       this.stripeTransactionRepository.create({
@@ -130,6 +137,7 @@ export class PaymentService {
         order,
         stripePaymentIntentId: paymentIntent.id,
         stripeCustomerId: customer.id,
+        paymentMethodType: stripePaymentMethodType,
         amount,
         feeAmount,
         status: StripeTransactionStatus.PAYMENT_PENDING,

@@ -15,6 +15,11 @@ export enum StripeTransactionStatus {
   FAILED = 'FAILED',
 }
 
+export enum StripePaymentMethodType {
+  PIX = 'PIX',
+  CARD = 'CARD',
+}
+
 @Entity('stripe_transactions')
 export class StripeTransaction {
   @PrimaryGeneratedColumn('uuid')
@@ -32,6 +37,14 @@ export class StripeTransaction {
 
   @Column({ name: 'stripe_customer_id', type: 'varchar', nullable: true })
   stripeCustomerId: string | null;
+
+  @Column({
+    name: 'payment_method_type',
+    type: 'enum',
+    enum: StripePaymentMethodType,
+    default: StripePaymentMethodType.CARD,
+  })
+  paymentMethodType: StripePaymentMethodType;
 
   @Column({ name: 'amount' })
   amount: number; // in cents

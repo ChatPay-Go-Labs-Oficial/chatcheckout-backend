@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './product.entity';
@@ -167,7 +167,18 @@ export class ProductService {
       relations: ['user'],
     });
     if (!product) throw new NotFoundException('Product not found');
-    await this.productRepository.remove(product);
+
+    try {
+      await this.productRepository.remove(product);
+    } catch (error: unknown) {
+      const pgError = error as { code?: string };
+      if (pgError?.code === '23503') {
+        throw new ConflictException(
+          'Este produto não pode ser excluído pois possui pedidos vinculados.',
+        );
+      }
+      throw error;
+    }
   }
 
   decodeProductHash(hash: string): {
@@ -214,6 +225,7 @@ export class ProductService {
           lastName: product.user.lastName,
           companyName: product.user.companyName,
         },
+        cryptoPaymentsEnabled: Boolean(product.user.cryptoWalletAddress),
       };
     } catch (error) {
       if (error instanceof NotFoundException) {

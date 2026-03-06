@@ -13,6 +13,9 @@ import { dataSourceOptions } from './config/typeorm.config';
 import { StripeModule } from './stripe/stripe.module';
 import { OrderModule } from './order/order.module';
 import { PaymentModule } from './payment/payment.module';
+import { CheckoutTrackingModule } from './checkout-tracking/checkout-tracking.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { SellerModule } from './seller/seller.module';
 
 @Module({
   imports: [
@@ -37,6 +40,9 @@ import { PaymentModule } from './payment/payment.module';
     StripeModule,
     OrderModule,
     PaymentModule,
+    CheckoutTrackingModule,
+    DashboardModule,
+    SellerModule,
   ],
   providers: [
     {

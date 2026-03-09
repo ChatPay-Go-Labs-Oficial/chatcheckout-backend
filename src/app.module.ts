@@ -21,9 +21,16 @@ import { ErrorTrackingModule } from './common/error-tracking/error-tracking.modu
 import { TracingModule } from './common/tracing/tracing.module';
 import { ObservabilityModule } from './common/observability/observability.module';
 import { BusinessEventsModule } from './common/business-events/business-events.module';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 
 @Module({
   imports: [
+    PrometheusModule.register({
+      path: '/metrics',
+      defaultMetrics: {
+        enabled: true,
+      },
+    }),
     ConfigModule.forRoot({ isGlobal: true }),
     LoggingModule,
     TypeOrmModule.forRootAsync({

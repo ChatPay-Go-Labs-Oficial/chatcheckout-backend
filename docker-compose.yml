@@ -29,6 +29,58 @@ services:
       timeout: 3s
       retries: 5
 
+  # Observability Stack
+  loki:
+    image: grafana/loki:latest
+    container_name: chatcheckout_loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./docker/observability/loki-config.yaml:/etc/loki/local-config.yaml
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - chatcheckout-network
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: chatcheckout_tempo
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ./docker/observability/tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+    networks:
+      - chatcheckout-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: chatcheckout_prometheus
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    networks:
+      - chatcheckout-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: chatcheckout_grafana
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./docker/observability/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    networks:
+      - chatcheckout-network
+
 volumes:
   pgdata:
   redis_data:

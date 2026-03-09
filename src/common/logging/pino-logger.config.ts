@@ -17,9 +17,11 @@ export const pinoLoggerConfig = (
   const lokiUrl = configService.get('LOKI_URL');
 
   // Configure transports
-  let transport: any;
+  const targets: any[] = [];
+
+  // Add pretty-print for development terminal
   if (!isProduction) {
-    transport = {
+    targets.push({
       target: 'pino-pretty',
       options: {
         colorize: true,
@@ -29,18 +31,37 @@ export const pinoLoggerConfig = (
         levelFirst: true,
         messageFormat: '{req.method} {req.url} - {msg}',
       },
-    };
-  } else if (lokiUrl) {
-    transport = {
+    });
+  } else {
+    // Basic JSON output for production terminal (if not only using Loki)
+    targets.push({
+      target: 'pino/file',
+      options: { destination: 1 },
+    });
+  }
+
+  // Add Loki transport if URL exists (Production or Local testing)
+  if (lokiUrl) {
+    // Ensure the URL has the push endpoint
+    const host = lokiUrl.includes('/loki/api/v1/push') 
+      ? lokiUrl 
+      : `${lokiUrl.endsWith('/') ? lokiUrl.slice(0, -1) : lokiUrl}/loki/api/v1/push`;
+
+    targets.push({
       target: 'pino-loki',
       options: {
         batching: true,
-        interval: 5,
-        host: lokiUrl,
-        labels: { application: 'chatcheckout-backend' },
+        interval: 1, // 1 second for faster updates in dev
+        host,
+        labels: { 
+          application: 'chatcheckout-backend',
+          environment: configService.get('NODE_ENV', 'development'),
+        },
       },
-    };
+    });
   }
+
+  const transport = targets.length > 0 ? { targets } : undefined;
 
   return {
     pinoHttp: {

@@ -1,6 +1,5 @@
-import { Injectable, Inject, Optional } from '@nestjs/common';
+import { Injectable, Inject, Optional, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as Sentry from '@sentry/node';
 import type { Request } from 'express';
 import {
   BusinessEvent,
@@ -20,8 +19,8 @@ import {
 /**
  * Business Events Service
  *
- * Tracks important business events and sends them to Glitchtip/Sentry
- * for real-time monitoring and analytics.
+ * Tracks important business events and logs them in a structured way.
+ * These logs are formatted by Pino and sent to output/Loki.
  *
  * Events are categorized and can be filtered by:
  * - Category (auth, product, order, payment, crypto, etc.)
@@ -50,26 +49,22 @@ import {
  */
 @Injectable()
 export class BusinessEventsService {
+  private readonly logger = new Logger(BusinessEventsService.name);
   private readonly isEnabled: boolean;
   private readonly environment: string;
 
   constructor(
     @Optional() private readonly configService?: ConfigService,
   ) {
-    this.isEnabled = this.checkIfEnabled();
-    this.environment = this.configService?.get('SENTRY_ENVIRONMENT') ||
-                      this.configService?.get('NODE_ENV') ||
-                      'development';
+    this.isEnabled = this.configService?.get('BUSINESS_EVENTS_ENABLED', 'true') === 'true';
+    this.environment = this.configService?.get('NODE_ENV') || 'development';
   }
 
   /**
    * Check if business events tracking is enabled
    */
   private checkIfEnabled(): boolean {
-    const enabled = this.configService?.get('BUSINESS_EVENTS_ENABLED');
-    const dsn = this.configService?.get('GLITCHTIP_DSN') ||
-                this.configService?.get('SENTRY_DSN');
-    return enabled === 'true' || (!!dsn && enabled !== 'false');
+    return this.configService?.get('BUSINESS_EVENTS_ENABLED', 'true') === 'true';
   }
 
   /**
@@ -80,69 +75,42 @@ export class BusinessEventsService {
       return;
     }
 
-    Sentry.withScope((scope) => {
-      // Set event context
-      scope.setContext('business_event', {
+    // Build structured log message
+    const businessContext: Record<string, string> = {};
+    if (event.sellerId) businessContext.sellerId = event.sellerId;
+    if (event.orderId) businessContext.orderId = event.orderId;
+    if (event.productId) businessContext.productId = event.productId;
+    if (event.sessionId) businessContext.sessionId = event.sessionId;
+    if (event.transactionId) businessContext.transactionId = event.transactionId;
+    if (event.correlationId) businessContext.correlationId = event.correlationId;
+
+    const logData = {
+      business_event: {
         category: event.category,
         type: event.type,
         name: event.name,
         result: event.tags?.result || EventResult.SUCCESS,
         severity: event.tags?.severity || EventSeverity.INFO,
         timestamp: event.timestamp.toISOString(),
-      });
+      },
+      user_id: event.userId,
+      business_context: businessContext,
+      event_tags: event.tags,
+      metrics: event.metrics,
+      event_data: event.data,
+      environment: event.environment,
+    };
 
-      // Set user context
-      if (event.userId) {
-        scope.setUser({ id: event.userId });
-      }
+    const message = `[${event.category}] ${event.name}${event.tags?.result ? ` - ${event.tags.result}` : ''}`;
+    const severity = event.tags?.severity || EventSeverity.INFO;
 
-      // Set tags for filtering
-      scope.setTag('event_category', event.category);
-      scope.setTag('event_type', event.type);
-      scope.setTag('event_name', event.name);
-      scope.setTag('environment', event.environment);
-
-      if (event.tags) {
-        Object.entries(event.tags).forEach(([key, value]) => {
-          scope.setTag(key, value);
-        });
-      }
-
-      // Set business context
-      const businessContext: Record<string, string> = {};
-      if (event.sellerId) businessContext.sellerId = event.sellerId;
-      if (event.orderId) businessContext.orderId = event.orderId;
-      if (event.productId) businessContext.productId = event.productId;
-      if (event.sessionId) businessContext.sessionId = event.sessionId;
-      if (event.transactionId) businessContext.transactionId = event.transactionId;
-      if (event.correlationId) businessContext.correlationId = event.correlationId;
-
-      if (Object.keys(businessContext).length > 0) {
-        scope.setTags(businessContext);
-      }
-
-      // Set metrics
-      if (event.metrics) {
-        scope.setExtras({
-          metrics: event.metrics,
-          data: event.data,
-        });
-      } else {
-        scope.setExtras({ data: event.data });
-      }
-
-      // Send as a message (not an exception)
-      const level = event.tags?.severity === EventSeverity.ERROR ||
-                    event.tags?.severity === EventSeverity.CRITICAL
-                    ? 'error'
-                    : event.tags?.severity === EventSeverity.WARNING
-                    ? 'warning'
-                    : 'info';
-
-      const message = `[${event.category}] ${event.name}${event.tags?.result ? ` - ${event.tags.result}` : ''}`;
-
-      Sentry.captureMessage(message, level as Sentry.SeverityLevel);
-    });
+    if (severity === EventSeverity.ERROR || severity === EventSeverity.CRITICAL) {
+      this.logger.error(message, undefined, undefined, logData);
+    } else if (severity === EventSeverity.WARNING) {
+      this.logger.warn(message, logData);
+    } else {
+      this.logger.log(message, logData);
+    }
   }
 
   /**
@@ -498,38 +466,11 @@ export class BusinessEventsService {
   /**
    * Set request context from Express request
    * Extracts correlation ID and user info for event enrichment
+   * 
+   * @deprecated Pino and OpenTelemetry correctly extract this logic automatically.
    */
   setRequestContext(request: Request): void {
-    if (!this.isEnabled) {
-      return;
-    }
-
-    Sentry.withScope((scope) => {
-      // Add correlation ID
-      const correlationId = request.headers['x-correlation-id'] as string;
-      if (correlationId) {
-        scope.setTag('correlation_id', correlationId);
-      }
-
-      // Add user from JWT if available
-      if (request.user) {
-        scope.setUser({
-          id: request.user.id || request.user.sub,
-          role: request.user.role,
-        });
-      }
-
-      // Add business context
-      const businessContext: Record<string, string> = {};
-      if (request.sellerId) businessContext.sellerId = request.sellerId;
-      if (request.params?.orderId) businessContext.orderId = request.params.orderId;
-      if (request.params?.productId) businessContext.productId = request.params.productId;
-      if (request.params?.sessionId) businessContext.sessionId = request.params.sessionId;
-
-      if (Object.keys(businessContext).length > 0) {
-        scope.setTags(businessContext);
-      }
-    });
+    // Left intentionally blank as Pino and OpenTelemetry are handling this automatically now.
   }
 
   /**

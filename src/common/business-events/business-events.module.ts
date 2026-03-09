@@ -7,7 +7,7 @@ import { BusinessEventsController } from './business-events.controller';
  * Business Events Module
  *
  * Global module for tracking business events across the application.
- * Events are sent to Glitchtip/Sentry for real-time monitoring and analytics.
+ * Events are logged and processed in real-time.
  *
  * Features:
  * - Authentication events (login, logout, registration, etc.)
@@ -20,9 +20,7 @@ import { BusinessEventsController } from './business-events.controller';
  * - User events (created, updated, activity)
  *
  * Environment Variables:
- * - BUSINESS_EVENTS_ENABLED: Enable/disable business events (true/false, default: true if DSN is set)
- * - GLITCHTIP_DSN: Glitchtip DSN (or SENTRY_DSN)
- * - SENTRY_ENVIRONMENT: Environment name (development, staging, production)
+ * - BUSINESS_EVENTS_ENABLED: Enable/disable business events (true/false)
  *
  * Usage:
  * ```typescript

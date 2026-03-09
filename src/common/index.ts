@@ -14,7 +14,6 @@ export * from './filters/http-exception.filter';
 // Observability
 export * from './logging/logging.module';
 export * from './health/health.module';
-export * from './error-tracking/error-tracking.module';
 export * from './tracing/tracing.module';
 export * from './observability/observability.module';
 export * from './business-events/business-events.module';

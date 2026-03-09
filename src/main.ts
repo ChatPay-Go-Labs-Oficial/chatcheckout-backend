@@ -7,21 +7,11 @@ import { Reflector } from '@nestjs/core';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ErrorTrackingModule } from './common/error-tracking/error-tracking.module';
-
-/**
- * Initialize Sentry/GlitchTip error tracking
- *
- * Must be initialized before NestJS app creation to capture all errors.
- */
-ErrorTrackingModule.initializeSentry();
-
 /**
  * Bootstrap the ChatCheckout Backend application
  *
  * Configures:
  * - Structured logging (Pino)
- * - Error tracking (Sentry/GlitchTip)
  * - Distributed tracing (correlation IDs)
  * - Global exception filters
  * - Validation pipes

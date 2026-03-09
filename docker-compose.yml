@@ -2,7 +2,6 @@ services:
   postgres:
     image: postgres:15
     container_name: chatcheckout_postgres
-    restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
@@ -17,7 +16,6 @@ services:
   redis:
     image: redis:7-alpine
     container_name: chatcheckout_redis
-    restart: always
     command: redis-server --requirepass redis_password_secret
     ports:
       - "6379:6379"

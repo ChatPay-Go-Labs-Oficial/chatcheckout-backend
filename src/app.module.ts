@@ -17,7 +17,6 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { SellerModule } from './seller/seller.module';
 import { LoggingModule } from './common/logging/logging.module';
 import { HealthModule } from './common/health/health.module';
-import { ErrorTrackingModule } from './common/error-tracking/error-tracking.module';
 import { TracingModule } from './common/tracing/tracing.module';
 import { ObservabilityModule } from './common/observability/observability.module';
 import { BusinessEventsModule } from './common/business-events/business-events.module';
@@ -51,7 +50,6 @@ import { PrometheusModule } from '@willsoto/nestjs-prometheus';
       }),
     }),
     HealthModule,
-    ErrorTrackingModule,
     TracingModule,
     ObservabilityModule,
     BusinessEventsModule,

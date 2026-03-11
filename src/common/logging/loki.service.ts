@@ -67,6 +67,7 @@ export class LokiService implements LoggerService {
     const timestamp = (Date.now() * 1000000).toString();
     const logEntry = JSON.stringify({
       message,
+      trace_id: currentTraceId,
       ...context,
     });
 

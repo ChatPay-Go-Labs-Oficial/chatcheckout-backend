@@ -2,7 +2,7 @@ import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
 import { ProductModule } from './product/product.module';
 import { UserModule } from './user/user.module';
@@ -20,16 +20,12 @@ import { HealthModule } from './common/health/health.module';
 import { TracingModule } from './common/tracing/tracing.module';
 import { ObservabilityModule } from './common/observability/observability.module';
 import { BusinessEventsModule } from './common/business-events/business-events.module';
-import { PrometheusModule } from '@willsoto/nestjs-prometheus';
+import { HttpMetricsModule } from './common/metrics/http-metrics.module';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 @Module({
   imports: [
-    PrometheusModule.register({
-      path: '/metrics',
-      defaultMetrics: {
-        enabled: true,
-      },
-    }),
+    HttpMetricsModule,
     ConfigModule.forRoot({ isGlobal: true }),
     LoggingModule,
     TypeOrmModule.forRootAsync({
@@ -80,6 +76,10 @@ import { PrometheusModule } from '@willsoto/nestjs-prometheus';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
     },
   ],
 })

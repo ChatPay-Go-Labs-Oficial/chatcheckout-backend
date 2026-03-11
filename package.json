@@ -26,7 +26,9 @@
     "migration:show": "npm run build && typeorm-ts-node-commonjs migration:show -d dist/config/typeorm.config.js",
     "railway:build": "npm run build",
     "railway:start": "node dist/main.js",
-    "observability:test": "npm run test && npm run test:e2e"
+    "observability:test": "npm run test && npm run test:e2e",
+    "sentry:release": "sentry-cli releases new $npm_package_version",
+    "sentry:sourcemaps": "sentry-cli releases files $npm_package_version upload-sourcemaps ./dist"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.946.0",

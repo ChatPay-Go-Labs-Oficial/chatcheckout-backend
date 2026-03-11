@@ -4,10 +4,13 @@ import {
   ExecutionContext,
   CallHandler,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { Request } from 'express';
+import { LokiService } from '../loki.service';
+import { trace, context as otelContext } from '@opentelemetry/api';
 
 /**
  * Logging Interceptor
@@ -17,10 +20,13 @@ import { Request } from 'express';
  * - Seller ID for business operations
  * - Request timing
  * - Business context from request metadata
+ * - Sends logs to Loki when enabled
  */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger(LoggingInterceptor.name);
+
+  constructor(@Optional() private lokiService: LokiService) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -35,6 +41,10 @@ export class LoggingInterceptor implements NestInterceptor {
       startTime: Date.now(),
     };
 
+    // Get trace ID from OpenTelemetry
+    const currentSpan = trace.getSpan(otelContext.active());
+    const traceId = currentSpan?.spanContext()?.traceId;
+
     return next.handle().pipe(
       tap({
         next: () => {
@@ -43,7 +53,7 @@ export class LoggingInterceptor implements NestInterceptor {
           const duration = Date.now() - startTime;
 
           // Log successful request with business context
-          this.logRequestCompletion(request, response, duration, businessContext);
+          this.logRequestCompletion(request, response, duration, businessContext, traceId);
         },
         error: (error) => {
           // Calculate request duration
@@ -51,7 +61,7 @@ export class LoggingInterceptor implements NestInterceptor {
           const duration = Date.now() - startTime;
 
           // Log failed request with business context
-          this.logRequestError(request, duration, error, businessContext);
+          this.logRequestError(request, duration, error, businessContext, traceId);
         },
       }),
     );
@@ -96,6 +106,7 @@ export class LoggingInterceptor implements NestInterceptor {
     response: any,
     duration: number,
     businessContext: Record<string, any>,
+    traceId?: string,
   ): void {
     // Skip logging for health checks and heartbeats
     if (
@@ -114,10 +125,22 @@ export class LoggingInterceptor implements NestInterceptor {
     };
 
     // Log with appropriate level based on status code
+    const level = response.statusCode >= 400 ? 'warn' : 'info';
+    const message = `${request.method} ${request.url} - ${response.statusCode}`;
+
+    // Standard NestJS logger
     if (response.statusCode >= 400) {
       this.logger.warn(JSON.stringify(logData));
     } else {
       this.logger.log(JSON.stringify(logData));
+    }
+
+    // Send to Loki if enabled
+    if (this.lokiService) {
+      this.logger.debug(`Sending log to Loki: ${message}`);
+      this.lokiService.sendLog(level, message, logData, traceId);
+    } else {
+      this.logger.debug('LokiService not available');
     }
   }
 
@@ -129,6 +152,7 @@ export class LoggingInterceptor implements NestInterceptor {
     duration: number,
     error: Error,
     businessContext: Record<string, any>,
+    traceId?: string,
   ): void {
     const logData = {
       method: request.method,
@@ -138,7 +162,15 @@ export class LoggingInterceptor implements NestInterceptor {
       ...businessContext,
     };
 
+    const message = `${request.method} ${request.url} - ${error.message}`;
+
+    // Standard NestJS logger
     this.logger.error(JSON.stringify(logData), error.stack);
+
+    // Send to Loki if enabled
+    if (this.lokiService) {
+      this.lokiService.sendLog('error', message, logData, traceId);
+    }
   }
 }
 

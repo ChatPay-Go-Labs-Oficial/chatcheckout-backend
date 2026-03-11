@@ -8,10 +8,21 @@ import { Logger } from '@nestjs/common';
 
 const logger = new Logger('OpenTelemetry');
 
-// Configure the OTLP Trace Exporter (Tempo)
-const traceExporter = new OTLPTraceExporter({
-  url: process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || 'http://localhost:4318/v1/traces',
-});
+/**
+ * OpenTelemetry Setup
+ *
+ * This provides distributed tracing with Grafana Tempo via OTLP.
+ * Trace data is correlated with logs (Loki) and metrics (Prometheus).
+ *
+ * Grafana Stack Integration:
+ * - Traces are sent to Tempo via OTLP HTTP endpoint
+ * - Trace IDs are automatically included in logs for correlation
+ * - Service metrics are available in Prometheus
+ */
+
+// Get Tempo endpoint from environment or use default
+const tempoEndpoint = process.env.TEMPO_ENDPOINT || 'http://localhost:4318/v1/traces';
+const tracesEnabled = process.env.TRACES_ENABLED === 'true' || process.env.NODE_ENV === 'production';
 
 // Configure the OpenTelemetry SDK
 const sdk = new NodeSDK({
@@ -19,7 +30,17 @@ const sdk = new NodeSDK({
     [SEMRESATTRS_SERVICE_NAME]: 'chatcheckout-backend',
     [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'development',
   }),
-  spanProcessor: new BatchSpanProcessor(traceExporter),
+  spanProcessor: tracesEnabled
+    ? new BatchSpanProcessor(
+        new OTLPTraceExporter({
+          url: tempoEndpoint,
+        }),
+      )
+    : new BatchSpanProcessor(new (class NoOpExporter {
+      export() { return Promise.resolve(); }
+      forceFlush() { return Promise.resolve(); }
+      shutdown() { return Promise.resolve(); }
+    })()),
   instrumentations: [
     getNodeAutoInstrumentations({
       '@opentelemetry/instrumentation-http': {
@@ -38,7 +59,11 @@ const sdk = new NodeSDK({
 // Initialize the SDK and process termination
 try {
   sdk.start();
-  logger.log('OpenTelemetry SDK started');
+  if (tracesEnabled) {
+    logger.log(`OpenTelemetry SDK started - Traces sent to Tempo (${tempoEndpoint})`);
+  } else {
+    logger.log('OpenTelemetry SDK started - Tracing disabled (set TRACES_ENABLED=true or NODE_ENV=production)');
+  }
 } catch (error) {
   logger.error('Error starting OpenTelemetry SDK', error);
 }

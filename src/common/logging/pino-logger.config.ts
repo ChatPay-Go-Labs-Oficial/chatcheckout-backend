@@ -8,15 +8,20 @@ import { trace, context } from '@opentelemetry/api';
  *
  * Provides different configurations for development and production environments:
  * - Development: Pretty-printed logs with colors for local debugging
- * - Production: Structured JSON logs for Railway log aggregation, optionally sent to Loki
+ * - Production: Structured JSON logs for stdout/log aggregation
+ *
+ * Grafana Stack Integration:
+ * - Logs are sent to Loki via LokiService (separate from Pino)
+ * - Trace correlation with Tempo via OpenTelemetry trace_id
+ * - Metrics available in Prometheus via /metrics endpoint
  */
+
 export const pinoLoggerConfig = (
   configService: ConfigService,
 ): Params => {
   const isProduction = configService.get('NODE_ENV') === 'production';
-  const lokiUrl = configService.get('LOKI_URL');
 
-  // Configure transports
+  // Build transport targets
   const targets: any[] = [];
 
   // Add pretty-print for development terminal
@@ -31,43 +36,13 @@ export const pinoLoggerConfig = (
         levelFirst: true,
         messageFormat: '{req.method} {req.url} - {msg}',
       },
-    });
-  } else {
-    // Basic JSON output for production terminal (if not only using Loki)
-    targets.push({
-      target: 'pino/file',
-      options: { destination: 1 },
+      level: 'trace',
     });
   }
-
-  // Add Loki transport if URL exists (Production or Local testing)
-  if (lokiUrl) {
-    // Ensure the URL has the push endpoint
-    const host = lokiUrl.includes('/loki/api/v1/push') 
-      ? lokiUrl 
-      : `${lokiUrl.endsWith('/') ? lokiUrl.slice(0, -1) : lokiUrl}/loki/api/v1/push`;
-
-    targets.push({
-      target: 'pino-loki',
-      options: {
-        batching: true,
-        interval: 1, // 1 second for faster updates in dev
-        host,
-        labels: { 
-          application: 'chatcheckout-backend',
-          environment: configService.get('NODE_ENV', 'development'),
-        },
-      },
-    });
-  }
-
-  const transport = targets.length > 0 ? { targets } : undefined;
 
   return {
     pinoHttp: {
-      transport,
-      // Base logging level
-      level: configService.get('LOG_LEVEL', 'info'),
+      transport: targets.length > 0 ? { targets } : undefined,
 
       // Redact sensitive data
       redact: {
@@ -143,13 +118,7 @@ export const pinoLoggerConfig = (
 
       // Auto-level logging for different status codes
       customLogLevel: (req: any, res: any, err: any) => {
-        if (res.statusCode >= 400 && res.statusCode < 500) {
-          return 'warn';
-        }
-        if (res.statusCode >= 500 || err) {
-          return 'error';
-        }
-        return 'info';
+        return err || res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
       },
 
       // Custom success message
@@ -183,4 +152,3 @@ export const pinoLoggerConfig = (
 function generateRequestId(): string {
   return `req-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
 }
-

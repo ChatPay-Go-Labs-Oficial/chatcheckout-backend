@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { pinoLoggerConfig } from './pino-logger.config';
 import { LoggingInterceptor } from './interceptors/logging.interceptor';
+import { LokiService } from './loki.service';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import {
   RequestLogger,
@@ -21,6 +22,7 @@ import {
  * - Automatic request ID generation
  * - Business context inclusion (userId, sellerId, etc.)
  * - Sensitive data redaction
+ * - Loki integration for centralized logging
  */
 @Global()
 @Module({
@@ -32,12 +34,13 @@ import {
     }),
   ],
   providers: [
+    LokiService,
     {
       provide: APP_INTERCEPTOR,
       useClass: LoggingInterceptor,
     },
     RequestLogger,
   ],
-  exports: [LoggerModule, RequestLogger],
+  exports: [LoggerModule, RequestLogger, LokiService],
 })
 export class LoggingModule {}

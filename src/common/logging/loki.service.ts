@@ -50,14 +50,17 @@ export class LokiService implements LoggerService {
       return;
     }
 
+    const activeSpan = trace.getSpan(otelContext.active());
+    const currentTraceId = traceId || activeSpan?.spanContext().traceId;
+
     const labels: Record<string, string> = {
       application: this.application,
       environment: this.environment,
       level,
     };
 
-    if (traceId) {
-      labels.trace_id = traceId;
+    if (currentTraceId) {
+      labels.trace_id = currentTraceId;
     }
 
     // Loki expects nanoseconds since epoch

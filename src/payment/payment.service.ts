@@ -24,6 +24,8 @@ import { InitCryptoTransactionDto } from './dto/init-crypto-transaction.dto';
 import { MarkCryptoSubmittedDto } from './dto/mark-crypto-submitted.dto';
 import { MarkCryptoCompleteDto } from './dto/mark-crypto-complete.dto';
 import { MarkCryptoFailedDto } from './dto/mark-crypto-failed.dto';
+import { BusinessEventsService, CryptoEventType, PaymentEventType } from '../common/business-events';
+import { OrderService } from '../order/order.service';
 
 @Injectable()
 export class PaymentService {
@@ -42,6 +44,8 @@ export class PaymentService {
     private sellerLedgerRepository: Repository<SellerLedgerEntry>,
     private stripeService: StripeService,
     private checkoutTrackingService: CheckoutTrackingService,
+    private businessEvents: BusinessEventsService,
+    private orderService: OrderService,
   ) {}
 
   async createAccountSession(userId: string): Promise<{ clientSecret: string }> {
@@ -157,6 +161,27 @@ export class PaymentService {
       },
     });
 
+    // Track payment initiated event
+    if (paymentMethod === 'pix') {
+      this.businessEvents.trackPaymentEvent(PaymentEventType.PIX_PAYMENT_INITIATED, {
+        orderId: order.id,
+        userId: userId,
+        sellerId: seller.id,
+        amount: order.totalAmount / 100,
+        paymentMethod: 'pix',
+        currency: 'BRL',
+      });
+    } else if (paymentMethod === 'card') {
+      this.businessEvents.trackPaymentEvent(PaymentEventType.CARD_PAYMENT_INITIATED, {
+        orderId: order.id,
+        userId: userId,
+        sellerId: seller.id,
+        amount: order.totalAmount / 100,
+        paymentMethod: 'card',
+        currency: 'BRL',
+      });
+    }
+
     const response: { clientSecret: string; orderId: string; qrCode?: string; pixCode?: string } = {
       clientSecret: paymentIntent.client_secret!,
       orderId: order.id,
@@ -245,6 +270,20 @@ export class PaymentService {
       }),
     );
 
+    // Track crypto transaction created event
+    this.businessEvents.trackCryptoEvent(CryptoEventType.TRANSACTION_CREATED, {
+      transactionId: orderRef,
+      orderId: order.id,
+      sellerId: product.user.id,
+      buyerWallet: dto.buyerWallet,
+      sellerWallet: product.user.cryptoWalletAddress,
+      amountToken: dto.amountToken,
+      amountFiat: dto.amountFiat,
+      tokenSymbol: dto.tokenSymbol,
+      network: dto.network,
+    });
+
+    // Track checkout event
     await this.checkoutTrackingService.recordBackendEvent({
       productId: product.id,
       sellerId: product.user.id,
@@ -277,6 +316,14 @@ export class PaymentService {
     tx.blockchainHash = dto.blockchainHash;
     await this.cryptoTransactionRepository.save(tx);
 
+    // Track crypto transaction submitted to blockchain event
+    this.businessEvents.trackCryptoEvent(CryptoEventType.TRANSACTION_SUBMITTED_TO_BLOCKCHAIN, {
+      transactionId: tx.orderRef,
+      orderId: tx.orderId,
+      blockchainHash: dto.blockchainHash,
+      network: tx.network,
+    });
+
     return { status: tx.status };
   }
 
@@ -301,6 +348,9 @@ export class PaymentService {
 
     order.status = OrderStatus.COMPLETED;
     await this.orderRepository.save(order);
+
+    // Track order status change
+    await this.orderService.updateOrderStatus(order.id, OrderStatus.COMPLETED, order.status);
 
     const netAmount = order.totalAmount - order.feeAmount;
     const currency = order.product.currency || 'BRL';
@@ -328,6 +378,22 @@ export class PaymentService {
       }),
     ]);
 
+    // Track crypto transaction completed event
+    this.businessEvents.trackCryptoEvent(CryptoEventType.TRANSACTION_COMPLETED, {
+      transactionId: tx.orderRef,
+      orderId: tx.orderId,
+      sellerId: order.sellerId,
+      buyerWallet: tx.buyerWallet,
+      sellerWallet: tx.sellerWallet,
+      amountToken: tx.amountToken,
+      amountFiat: tx.amountFiat,
+      tokenSymbol: tx.tokenSymbol,
+      planType: tx.planType || undefined,
+      network: tx.network,
+      blockchainHash: dto.blockchainHash,
+    });
+
+    // Track checkout event
     await this.checkoutTrackingService.recordBackendEvent({
       productId: order.productId,
       sellerId: order.sellerId,
@@ -361,6 +427,26 @@ export class PaymentService {
       order.status = OrderStatus.FAILED;
       await this.orderRepository.save(order);
 
+      // Track order status change
+      await this.orderService.updateOrderStatus(order.id, OrderStatus.FAILED, order.status);
+
+      // Track crypto transaction failed event
+      this.businessEvents.trackCryptoEvent(CryptoEventType.TRANSACTION_FAILED, {
+        transactionId: tx.orderRef,
+        orderId: tx.orderId,
+        sellerId: order.sellerId,
+        buyerWallet: tx.buyerWallet,
+        sellerWallet: tx.sellerWallet,
+        amountToken: tx.amountToken,
+        amountFiat: tx.amountFiat,
+        tokenSymbol: tx.tokenSymbol,
+        planType: tx.planType || undefined,
+        network: tx.network,
+        blockchainHash: tx.blockchainHash || undefined,
+        failureReason: dto.reason,
+      });
+
+      // Track checkout event
       await this.checkoutTrackingService.recordBackendEvent({
         productId: order.productId,
         sellerId: order.sellerId,
@@ -395,6 +481,30 @@ export class PaymentService {
     const order = stripeTx.order;
     order.status = OrderStatus.COMPLETED;
     await this.orderRepository.save(order);
+
+    // Track order status change
+    await this.orderService.updateOrderStatus(order.id, OrderStatus.COMPLETED, order.status);
+
+    // Track payment success event
+    if (stripeTx.paymentMethodType === StripePaymentMethodType.PIX) {
+      this.businessEvents.trackPaymentEvent(PaymentEventType.PIX_PAYMENT_SUCCESS, {
+        orderId: order.id,
+        userId: order.sellerId,
+        sellerId: order.sellerId,
+        amount: order.totalAmount / 100,
+        paymentMethod: 'pix',
+        currency: 'BRL',
+      });
+    } else if (stripeTx.paymentMethodType === StripePaymentMethodType.CARD) {
+      this.businessEvents.trackPaymentEvent(PaymentEventType.CARD_PAYMENT_SUCCESS, {
+        orderId: order.id,
+        userId: order.sellerId,
+        sellerId: order.sellerId,
+        amount: order.totalAmount / 100,
+        paymentMethod: 'card',
+        currency: 'BRL',
+      });
+    }
 
     // Ledger: SALE_CREDIT e PLATFORM_FEE
     const seller = await this.userRepository.findOne({ where: { id: order.sellerId } });
@@ -461,6 +571,32 @@ export class PaymentService {
     const order = stripeTx.order;
     order.status = OrderStatus.FAILED;
     await this.orderRepository.save(order);
+
+    // Track order status change
+    await this.orderService.updateOrderStatus(order.id, OrderStatus.FAILED, order.status);
+
+    // Track payment failed event
+    if (stripeTx.paymentMethodType === StripePaymentMethodType.PIX) {
+      this.businessEvents.trackPaymentEvent(PaymentEventType.PIX_PAYMENT_FAILED, {
+        orderId: order.id,
+        userId: order.sellerId,
+        sellerId: order.sellerId,
+        amount: order.totalAmount / 100,
+        paymentMethod: 'pix',
+        currency: 'BRL',
+        failureReason: paymentIntent.last_payment_error?.message || 'payment_failed',
+      });
+    } else if (stripeTx.paymentMethodType === StripePaymentMethodType.CARD) {
+      this.businessEvents.trackPaymentEvent(PaymentEventType.CARD_PAYMENT_FAILED, {
+        orderId: order.id,
+        userId: order.sellerId,
+        sellerId: order.sellerId,
+        amount: order.totalAmount / 100,
+        paymentMethod: 'card',
+        currency: 'BRL',
+        failureReason: paymentIntent.last_payment_error?.message || 'payment_failed',
+      });
+    }
 
     console.log(`Order ${order.id} marked as FAILED`);
 

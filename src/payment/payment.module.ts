@@ -11,6 +11,7 @@ import { StripeTransaction } from './stripe-transaction.entity';
 import { CryptoTransaction } from './crypto-transaction.entity';
 import { SellerLedgerEntry } from './seller-ledger-entry.entity';
 import { CheckoutTrackingModule } from '../checkout-tracking/checkout-tracking.module';
+import { OrderModule } from '../order/order.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { CheckoutTrackingModule } from '../checkout-tracking/checkout-tracking.m
     StripeModule,
     AuthModule,
     CheckoutTrackingModule,
+    OrderModule,
   ],
   providers: [PaymentService],
   controllers: [PaymentController],

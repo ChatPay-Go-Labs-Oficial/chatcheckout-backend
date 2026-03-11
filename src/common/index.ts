@@ -10,3 +10,12 @@ export * from './decorators/is-stellar-public-key.decorator';
 
 // Filters
 export * from './filters/http-exception.filter';
+
+// Observability
+export * from './logging/logging.module';
+export * from './health/health.module';
+export * from './tracing/tracing.module';
+export * from './observability/observability.module';
+export * from './business-events/business-events.module';
+export * from './business-events/business-events.service';
+export * from './business-events/business-events.types';

@@ -10,5 +10,6 @@ import { OrderController } from './order.controller';
   imports: [TypeOrmModule.forFeature([Order, StripeTransaction]), AuthModule],
   providers: [OrderService],
   controllers: [OrderController],
+  exports: [OrderService],
 })
 export class OrderModule {}

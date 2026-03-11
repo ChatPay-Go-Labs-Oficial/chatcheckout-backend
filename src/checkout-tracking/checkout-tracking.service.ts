@@ -18,6 +18,7 @@ import {
 } from './checkout-tracking.enums';
 import { StartCheckoutTrackingSessionDto } from './dto/start-checkout-tracking-session.dto';
 import { TrackCheckoutEventDto } from './dto/track-checkout-event.dto';
+import { BusinessEventsService, CheckoutTrackingEventType as BusinessCheckoutEventType } from '../common/business-events';
 
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const METADATA_MAX_KEYS = 50;
@@ -32,6 +33,7 @@ export class CheckoutTrackingService {
     private readonly eventRepository: Repository<CheckoutTrackingEvent>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    private readonly businessEvents: BusinessEventsService,
   ) {}
 
   async startSession(
@@ -78,6 +80,13 @@ export class CheckoutTrackingService {
         metadata: { origin: 'session_start' },
       }),
     );
+
+    // Track business event
+    this.businessEvents.trackCheckoutEvent(BusinessCheckoutEventType.SESSION_STARTED, {
+      sessionId: session.id,
+      sellerId: session.sellerId,
+      productId: session.productId,
+    });
 
     return {
       sessionId: session.id,
@@ -143,6 +152,34 @@ export class CheckoutTrackingService {
         : {}),
     });
 
+    // Track business events for important checkout events
+    if (dto.eventType === CheckoutEventType.CHECKOUT_ABANDONED) {
+      const duration = session.startedAt ? new Date().getTime() - session.startedAt.getTime() : undefined;
+      this.businessEvents.trackCheckoutEvent(BusinessCheckoutEventType.SESSION_ABANDONED, {
+        sessionId: session.id,
+        sellerId: session.sellerId,
+        productId: session.productId,
+        step: dto.step || undefined,
+        abandonmentReason: dto.metadata?.reason as string || undefined,
+        duration,
+      });
+    } else if (dto.eventType === CheckoutEventType.PAYMENT_SUCCEEDED) {
+      const duration = session.startedAt ? new Date().getTime() - session.startedAt.getTime() : undefined;
+      this.businessEvents.trackCheckoutEvent(BusinessCheckoutEventType.SESSION_COMPLETED, {
+        sessionId: session.id,
+        sellerId: session.sellerId,
+        productId: session.productId,
+        orderId: dto.orderId || undefined,
+        duration,
+      });
+    } else if (dto.eventType === CheckoutEventType.CHECKOUT_STARTED) {
+      this.businessEvents.trackCheckoutEvent(BusinessCheckoutEventType.CHECKOUT_STARTED, {
+        sessionId: session.id,
+        sellerId: session.sellerId,
+        productId: session.productId,
+      });
+    }
+
     return { accepted: true };
   }
 
@@ -152,6 +189,14 @@ export class CheckoutTrackingService {
       lastSeenAt: new Date(),
       expiresAt: new Date(Date.now() + SESSION_TTL_MS),
     });
+
+    // Track session updated event (occasionally, to avoid too many events)
+    this.businessEvents.trackCheckoutEvent(BusinessCheckoutEventType.SESSION_UPDATED, {
+      sessionId: session.id,
+      sellerId: session.sellerId,
+      productId: session.productId,
+    });
+
     return { accepted: true };
   }
 

@@ -12,6 +12,7 @@ import {
   SortOrder,
 } from './dto/find-sales-query.dto';
 import { Order, OrderStatus, PaymentMethod } from './order.entity';
+import { BusinessEventsService, OrderEventType } from '../common/business-events';
 
 export interface OrderListResult {
   data: Order[];
@@ -53,6 +54,7 @@ export class OrderService {
     private readonly orderRepository: Repository<Order>,
     @InjectRepository(StripeTransaction)
     private readonly stripeTransactionRepository: Repository<StripeTransaction>,
+    private readonly businessEvents: BusinessEventsService,
   ) {}
 
   async findMyOrders(
@@ -209,6 +211,19 @@ export class OrderService {
       throw new ForbiddenException('You do not have permission to access this order');
     }
 
+    // Track order viewed event
+    this.businessEvents.trackOrderEvent(OrderEventType.ORDER_UPDATED, {
+      orderId: order.id,
+      userId: sellerId,
+      sellerId: order.sellerId,
+      total: order.totalAmount / 100, // Convert cents to currency unit
+      status: order.status,
+      data: {
+        action: 'viewed_by_seller',
+        productName: order.product?.name,
+      },
+    });
+
     return order;
   }
 
@@ -250,5 +265,67 @@ export class OrderService {
     }
 
     return query;
+  }
+
+  /**
+   * Update order status with business event tracking
+   * This method is called when order status changes (e.g., from PaymentService)
+   */
+  async updateOrderStatus(
+    orderId: string,
+    newStatus: OrderStatus,
+    previousStatus?: OrderStatus,
+  ): Promise<void> {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: ['product', 'seller'],
+    });
+
+    if (!order) {
+      return;
+    }
+
+    // Track appropriate event based on status change
+    if (newStatus === OrderStatus.COMPLETED) {
+      this.businessEvents.trackOrderEvent(OrderEventType.ORDER_COMPLETED, {
+        orderId: order.id,
+        userId: order.sellerId,
+        sellerId: order.sellerId,
+        total: order.totalAmount / 100, // Convert cents to currency unit
+        status: newStatus,
+        previousStatus: previousStatus,
+        data: {
+          productName: order.product?.name,
+          paymentMethod: order.paymentMethod,
+        },
+      });
+    } else if (newStatus === OrderStatus.FAILED) {
+      this.businessEvents.trackOrderEvent(OrderEventType.ORDER_CANCELLED, {
+        orderId: order.id,
+        userId: order.sellerId,
+        sellerId: order.sellerId,
+        total: order.totalAmount / 100,
+        status: newStatus,
+        previousStatus: previousStatus,
+        data: {
+          productName: order.product?.name,
+          paymentMethod: order.paymentMethod,
+          reason: 'payment_failed',
+        },
+      });
+    } else {
+      // Generic status change
+      this.businessEvents.trackOrderEvent(OrderEventType.ORDER_STATUS_CHANGED, {
+        orderId: order.id,
+        userId: order.sellerId,
+        sellerId: order.sellerId,
+        total: order.totalAmount / 100,
+        status: newStatus,
+        previousStatus: previousStatus || order.status,
+        data: {
+          productName: order.product?.name,
+        },
+      });
+    }
   }
 }

@@ -1,9 +1,10 @@
+import './otel-setup.js';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { AppModule } from './app.module.js';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 /**
@@ -18,18 +19,6 @@ import { ConfigService } from '@nestjs/config';
  * - Swagger API documentation
  */
 async function bootstrap() {
-  // Initialize OpenTelemetry AFTER all modules are loaded
-  // This prevents module patching conflicts with @nestjs/typeorm
-  const tracesEnabled = process.env.TRACES_ENABLED === 'true' || process.env.NODE_ENV === 'production';
-  if (tracesEnabled) {
-    try {
-      await import('./otel-setup.js');
-    } catch (error) {
-      console.error('Failed to initialize OpenTelemetry:', error);
-      // Continue without tracing rather than crash
-    }
-  }
-
   // Create application with raw body support for Stripe webhooks
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
@@ -43,6 +32,7 @@ async function bootstrap() {
   logger.log(`Starting in ${configService.get('NODE_ENV', 'development')} mode`);
   logger.log(`Log level: ${configService.get('LOG_LEVEL', 'info')}`);
   logger.log(`Log format: ${configService.get('LOG_FORMAT', 'json')}`);
+  const tracesEnabled = process.env.TRACES_ENABLED === 'true' || process.env.NODE_ENV === 'production';
   logger.log(`Tracing enabled: ${tracesEnabled}`);
 
   // Configure global exception filter

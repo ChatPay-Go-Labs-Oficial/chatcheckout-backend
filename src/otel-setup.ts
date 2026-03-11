@@ -1,3 +1,11 @@
+// Import crypto FIRST to ensure it's loaded before OpenTelemetry
+import * as crypto from 'crypto';
+
+// Ensure crypto is available globally
+if (typeof globalThis.crypto === 'undefined') {
+  (globalThis as any).crypto = crypto;
+}
+
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';

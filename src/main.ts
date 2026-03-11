@@ -1,16 +1,3 @@
-// NOTE: OpenTelemetry is disabled on Railway due to module patching conflicts
-// with @nestjs/typeorm and crypto.randomUUID(). See:
-// https://github.com/prismarinejs/haber/issues/50
-//
-// To enable when fixed:
-// 1. Remove the conditional import below
-// 2. Uncomment: import './otel-setup';
-//
-// Temporary workaround: Only import OTEL if NOT on Railway
-if (!process.env.RAILWAY_ENVIRONMENT && !process.env.RAILWAY_STATIC_URL) {
-  import('./otel-setup');
-}
-
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -31,6 +18,18 @@ import { ConfigService } from '@nestjs/config';
  * - Swagger API documentation
  */
 async function bootstrap() {
+  // Initialize OpenTelemetry AFTER all modules are loaded
+  // This prevents module patching conflicts with @nestjs/typeorm
+  const tracesEnabled = process.env.TRACES_ENABLED === 'true' || process.env.NODE_ENV === 'production';
+  if (tracesEnabled) {
+    try {
+      await import('./otel-setup');
+    } catch (error) {
+      console.error('Failed to initialize OpenTelemetry:', error);
+      // Continue without tracing rather than crash
+    }
+  }
+
   // Create application with raw body support for Stripe webhooks
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
@@ -44,6 +43,7 @@ async function bootstrap() {
   logger.log(`Starting in ${configService.get('NODE_ENV', 'development')} mode`);
   logger.log(`Log level: ${configService.get('LOG_LEVEL', 'info')}`);
   logger.log(`Log format: ${configService.get('LOG_FORMAT', 'json')}`);
+  logger.log(`Tracing enabled: ${tracesEnabled}`);
 
   // Configure global exception filter
   app.useGlobalFilters(new HttpExceptionFilter());

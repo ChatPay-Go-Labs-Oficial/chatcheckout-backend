@@ -10,6 +10,7 @@ import { User } from '../user/user.entity';
 import * as bcrypt from 'bcrypt';
 import { IdentifierDetector, IdentifierType } from '../common';
 import { TokenBlacklistService } from './token-blacklist.service';
+import { BusinessEventsService, AuthEventType } from '../common/business-events';
 
 /**
  * Interface para resposta de login
@@ -53,6 +54,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly tokenBlacklistService: TokenBlacklistService,
+    private readonly businessEvents: BusinessEventsService,
   ) {}
 
   /**
@@ -95,6 +97,16 @@ export class AuthService {
     // Sempre usar a mesma mensagem para não vazar informações
     if (!user) {
       this.logger.warn(`Tentativa de login falhou: usuário não encontrado`);
+
+      // Track failed login - user not found
+      this.businessEvents.trackAuthEvent(AuthEventType.LOGIN_FAILED, {
+        method: 'password',
+        failureReason: 'user_not_found',
+        data: {
+          identifier: identifier,
+        },
+      });
+
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
@@ -102,6 +114,15 @@ export class AuthService {
 
     if (!isPasswordValid) {
       this.logger.warn(`Tentativa de login falhou para usuário ID: ${user.id}`);
+
+      // Track failed login - invalid password
+      this.businessEvents.trackAuthEvent(AuthEventType.LOGIN_FAILED, {
+        userId: user.id,
+        email: user.email,
+        method: 'password',
+        failureReason: 'invalid_password',
+      });
+
       throw new UnauthorizedException('Credenciais inválidas');
     }
 
@@ -130,6 +151,16 @@ export class AuthService {
   async login(dto: LoginDto): Promise<LoginResponse> {
     const user = await this.validateUser(dto.identifier, dto.password);
     const payload = this.createJwtPayload(user);
+
+    // Track successful login
+    this.businessEvents.trackAuthEvent(AuthEventType.LOGIN_SUCCESS, {
+      userId: user.id,
+      email: user.email,
+      method: 'password',
+      data: {
+        role: user.role,
+      },
+    });
 
     return {
       access_token: this.jwtService.sign(payload as any),
@@ -166,11 +197,23 @@ export class AuthService {
 
       const newPayload = this.createJwtPayload(user);
 
+      // Track successful token refresh
+      this.businessEvents.trackAuthEvent(AuthEventType.TOKEN_REFRESHED, {
+        userId: user.id,
+        email: user.email,
+      });
+
       return {
         access_token: this.jwtService.sign(newPayload as any),
       };
     } catch {
       this.logger.warn(`Tentativa de refresh com token inválido`);
+
+      // Track failed token refresh
+      this.businessEvents.trackAuthEvent(AuthEventType.TOKEN_REFRESH_FAILED, {
+        failureReason: 'invalid_or_expired_token',
+      });
+
       throw new UnauthorizedException('Token de refresh inválido ou expirado');
     }
   }
@@ -183,11 +226,25 @@ export class AuthService {
     try {
       await this.tokenBlacklistService.addToBlacklist(dto.token);
 
+      // Track successful logout
+      this.businessEvents.trackAuthEvent(AuthEventType.LOGOUT_SUCCESS, {
+        method: 'token',
+      });
+
       return {
         message: 'Logout realizado com sucesso',
       };
     } catch (error) {
       this.logger.error(`Failed to add token to blacklist: ${error}`);
+
+      // Still track as successful logout (token was invalidated)
+      this.businessEvents.trackAuthEvent(AuthEventType.LOGOUT_SUCCESS, {
+        method: 'token',
+        data: {
+          error: 'blacklist_error',
+        },
+      });
+
       return {
         message: 'Logout realizado com sucesso',
       };

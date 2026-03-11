@@ -52,6 +52,9 @@ export class User {
   @Column({ name: 'stripe_onboarding_completed', default: false })
   stripeOnboardingCompleted: boolean;
 
+  @Column({ type: 'varchar', name: 'crypto_wallet_address', nullable: true, length: 56 })
+  cryptoWalletAddress: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

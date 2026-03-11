@@ -10,8 +10,13 @@ import {
 import { User } from '../user/user.entity';
 import { Product } from '../product/product.entity';
 
+export enum PaymentMethod {
+  STRIPE = 'STRIPE',
+  CRYPTO = 'CRYPTO',
+}
+
 export enum OrderStatus {
-  PENDING = 'PENDING',
+  CREATED = 'CREATED',
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
 }
@@ -21,38 +26,42 @@ export class Order {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
-  amount: number; // Amount in cents
-
-  @Column({ name: 'fee_amount' })
-  feeAmount: number; // Application fee in cents
-
-  @Column({ name: 'stripe_payment_intent_id', unique: true })
-  stripePaymentIntentId: string;
-
-  @Column({ name: 'stripe_customer_id', nullable: true })
-  stripeCustomerId: string;
-
-  @Column({
-    type: 'enum',
-    enum: OrderStatus,
-    default: OrderStatus.PENDING,
-  })
-  status: OrderStatus;
+  @Column({ name: 'seller_id' })
+  sellerId: string;
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'seller_id' })
   seller: User;
 
-  @Column({ name: 'seller_id' })
-  sellerId: string;
+  @Column({ name: 'product_id' })
+  productId: string;
 
   @ManyToOne(() => Product)
   @JoinColumn({ name: 'product_id' })
   product: Product;
 
-  @Column({ name: 'product_id' })
-  productId: string;
+  @Column({ name: 'total_amount' })
+  totalAmount: number; // Amount in cents
+
+  @Column({ name: 'fee_amount' })
+  feeAmount: number; // Application fee in cents
+
+  @Column({
+    name: 'payment_method',
+    type: 'enum',
+    enum: PaymentMethod,
+  })
+  paymentMethod: PaymentMethod;
+
+  @Column({
+    type: 'enum',
+    enum: OrderStatus,
+    default: OrderStatus.CREATED,
+  })
+  status: OrderStatus;
+
+  @Column({ name: 'attempt_count', default: 0 })
+  attemptCount: number;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

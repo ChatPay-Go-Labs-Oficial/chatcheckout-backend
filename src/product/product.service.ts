@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './product.entity';
@@ -8,6 +8,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductDecodeResponseDto } from './dto/product-decode-response.dto';
 import { UploadService } from 'src/upload/upload.service';
 import { ProductHashService } from './product-hash.service';
+import { BusinessEventsService, ProductEventType } from '../common/business-events';
 
 @Injectable()
 export class ProductService {
@@ -18,6 +19,7 @@ export class ProductService {
     private readonly userRepository: Repository<User>,
     private readonly uploadService: UploadService,
     private readonly productHashService: ProductHashService,
+    private readonly businessEvents: BusinessEventsService,
   ) {}
 
   async create(
@@ -68,7 +70,24 @@ export class ProductService {
       userId,
     );
 
-    return this.productRepository.save(savedProduct);
+    const finalProduct = await this.productRepository.save(savedProduct);
+
+    // Track product created event
+    this.businessEvents.trackProductEvent(ProductEventType.PRODUCT_CREATED, {
+      productId: finalProduct.id,
+      sellerId: finalProduct.user.id,
+      productName: finalProduct.name,
+      price: finalProduct.price,
+      stock: undefined, // Product doesn't have stock field
+      data: {
+        currency: finalProduct.currency,
+        hasProductUrl: !!finalProduct.productUrl,
+        hasImageUrl: !!finalProduct.imageUrl,
+        hasPromptAi: !!finalProduct.promptAi,
+      },
+    });
+
+    return finalProduct;
   }
 
   async findAll(
@@ -157,7 +176,21 @@ export class ProductService {
       product.productHash = newHash;
     }
 
-    return this.productRepository.save(product);
+    const updatedProduct = await this.productRepository.save(product);
+
+    // Track product updated event
+    this.businessEvents.trackProductEvent(ProductEventType.PRODUCT_UPDATED, {
+      productId: updatedProduct.id,
+      sellerId: updatedProduct.user.id,
+      productName: updatedProduct.name,
+      price: updatedProduct.price,
+      data: {
+        hashFieldsChanged,
+        fieldsUpdated: Object.keys(dto),
+      },
+    });
+
+    return updatedProduct;
   }
 
   async remove(id: string, userId: string): Promise<void> {
@@ -167,7 +200,26 @@ export class ProductService {
       relations: ['user'],
     });
     if (!product) throw new NotFoundException('Product not found');
-    await this.productRepository.remove(product);
+
+    try {
+      await this.productRepository.remove(product);
+
+      // Track product deleted event
+      this.businessEvents.trackProductEvent(ProductEventType.PRODUCT_DELETED, {
+        productId: product.id,
+        sellerId: product.user.id,
+        productName: product.name,
+        price: product.price,
+      });
+    } catch (error: unknown) {
+      const pgError = error as { code?: string };
+      if (pgError?.code === '23503') {
+        throw new ConflictException(
+          'Este produto não pode ser excluído pois possui pedidos vinculados.',
+        );
+      }
+      throw error;
+    }
   }
 
   decodeProductHash(hash: string): {
@@ -197,6 +249,14 @@ export class ProductService {
         throw new NotFoundException('Product or associated user not found');
       }
 
+      // Track product viewed event
+      this.businessEvents.trackProductEvent(ProductEventType.PRODUCT_VIEWED, {
+        productId: product.id,
+        sellerId: product.user.id,
+        productName: product.name,
+        price: product.price,
+      });
+
       // Return only essential data
       return {
         id: product.id,
@@ -214,6 +274,7 @@ export class ProductService {
           lastName: product.user.lastName,
           companyName: product.user.companyName,
         },
+        cryptoPaymentsEnabled: Boolean(product.user.cryptoWalletAddress),
       };
     } catch (error) {
       if (error instanceof NotFoundException) {

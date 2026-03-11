@@ -7,9 +7,27 @@ import { Product } from '../product/product.entity';
 import { Order } from '../order/order.entity';
 import { StripeModule } from '../stripe/stripe.module';
 import { AuthModule } from '../auth/auth.module';
+import { StripeTransaction } from './stripe-transaction.entity';
+import { CryptoTransaction } from './crypto-transaction.entity';
+import { SellerLedgerEntry } from './seller-ledger-entry.entity';
+import { CheckoutTrackingModule } from '../checkout-tracking/checkout-tracking.module';
+import { OrderModule } from '../order/order.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Product, Order]), StripeModule, AuthModule],
+  imports: [
+    TypeOrmModule.forFeature([
+      User,
+      Product,
+      Order,
+      StripeTransaction,
+      CryptoTransaction,
+      SellerLedgerEntry,
+    ]),
+    StripeModule,
+    AuthModule,
+    CheckoutTrackingModule,
+    OrderModule,
+  ],
   providers: [PaymentService],
   controllers: [PaymentController],
 })

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UserService } from './user.service';
 import { User } from './user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -30,6 +30,7 @@ describe('UserService', () => {
     companyName: undefined,
     cnpj: undefined,
     stripeOnboardingCompleted: false,
+    cryptoWalletAddress: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -234,6 +235,83 @@ describe('UserService', () => {
       await expect(service.remove('invalid-id')).rejects.toThrow(NotFoundException);
       expect(userRepository.findOne).toHaveBeenCalledWith({ where: { id: 'invalid-id' } });
       expect(userRepository.remove).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('upsertCryptoWallet', () => {
+    it('deve salvar carteira crypto para infoproducer', async () => {
+      const walletAddress = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+      const userWithWallet = { ...mockUser, cryptoWalletAddress: walletAddress };
+
+      (userRepository.findOne as jest.Mock)
+        .mockResolvedValueOnce(mockUser) // findById
+        .mockResolvedValueOnce(null); // duplicate wallet check
+      (userRepository.save as jest.Mock).mockResolvedValue(userWithWallet);
+
+      const result = await service.upsertCryptoWallet(mockUser.id, walletAddress.toLowerCase());
+
+      expect(userRepository.findOne).toHaveBeenNthCalledWith(2, {
+        where: { cryptoWalletAddress: walletAddress },
+      });
+      expect(userRepository.save).toHaveBeenCalledWith({
+        ...mockUser,
+        cryptoWalletAddress: walletAddress,
+      });
+      expect(result).toEqual(userWithWallet);
+    });
+
+    it('deve lançar ForbiddenException para usuário client', async () => {
+      const clientUser = { ...mockUser, role: UserRole.Client };
+
+      (userRepository.findOne as jest.Mock).mockResolvedValue(clientUser);
+
+      await expect(
+        service.upsertCryptoWallet(
+          clientUser.id,
+          'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(userRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('deve lançar ConflictException se carteira já pertence a outro usuário', async () => {
+      const walletAddress = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+      const otherUser = { ...mockUser, id: 'other-user-id', cryptoWalletAddress: walletAddress };
+
+      (userRepository.findOne as jest.Mock)
+        .mockResolvedValueOnce(mockUser) // findById
+        .mockResolvedValueOnce(otherUser); // duplicate wallet check
+
+      await expect(service.upsertCryptoWallet(mockUser.id, walletAddress)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(userRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('removeCryptoWallet', () => {
+    it('deve remover carteira crypto com sucesso', async () => {
+      const userWithWallet = {
+        ...mockUser,
+        cryptoWalletAddress: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+      };
+      const userWithoutWallet = { ...mockUser, cryptoWalletAddress: null };
+
+      (userRepository.findOne as jest.Mock).mockResolvedValue(userWithWallet);
+      (userRepository.save as jest.Mock).mockResolvedValue(userWithoutWallet);
+
+      await service.removeCryptoWallet(mockUser.id);
+
+      expect(userRepository.save).toHaveBeenCalledWith(userWithoutWallet);
+    });
+
+    it('deve lançar ForbiddenException para usuário client', async () => {
+      const clientUser = { ...mockUser, role: UserRole.Client };
+
+      (userRepository.findOne as jest.Mock).mockResolvedValue(clientUser);
+
+      await expect(service.removeCryptoWallet(clientUser.id)).rejects.toThrow(ForbiddenException);
+      expect(userRepository.save).not.toHaveBeenCalled();
     });
   });
 });

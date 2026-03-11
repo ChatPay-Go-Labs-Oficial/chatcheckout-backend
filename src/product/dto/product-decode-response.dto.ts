@@ -44,4 +44,10 @@ export class ProductDecodeResponseDto {
 
   @ApiProperty({ type: InfoproducerInfoDto })
   infoproducer: InfoproducerInfoDto;
+
+  @ApiProperty({
+    description: 'Whether crypto payment is enabled for this seller',
+    example: true,
+  })
+  cryptoPaymentsEnabled: boolean;
 }

@@ -23,7 +23,7 @@ async function bootstrap() {
   const tracesEnabled = process.env.TRACES_ENABLED === 'true' || process.env.NODE_ENV === 'production';
   if (tracesEnabled) {
     try {
-      await import('./otel-setup');
+      await import('./otel-setup.js');
     } catch (error) {
       console.error('Failed to initialize OpenTelemetry:', error);
       // Continue without tracing rather than crash

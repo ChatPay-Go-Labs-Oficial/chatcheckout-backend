@@ -43,6 +43,7 @@ const sdk = new NodeSDK({
     })()),
   instrumentations: [
     getNodeAutoInstrumentations({
+      // Only enable HTTP instrumentation - disable problematic ones
       '@opentelemetry/instrumentation-http': {
         ignoreIncomingRequestHook: (req: any) => {
           const url = req.url || '';
@@ -50,6 +51,12 @@ const sdk = new NodeSDK({
         },
       },
       '@opentelemetry/instrumentation-fs': {
+        enabled: false,
+      },
+      '@opentelemetry/instrumentation-dns': {
+        enabled: false,
+      },
+      '@opentelemetry/instrumentation-net': {
         enabled: false,
       },
     }),

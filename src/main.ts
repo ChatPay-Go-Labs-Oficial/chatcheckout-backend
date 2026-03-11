@@ -1,4 +1,16 @@
-import './otel-setup';
+// NOTE: OpenTelemetry is disabled on Railway due to module patching conflicts
+// with @nestjs/typeorm and crypto.randomUUID(). See:
+// https://github.com/prismarinejs/haber/issues/50
+//
+// To enable when fixed:
+// 1. Remove the conditional import below
+// 2. Uncomment: import './otel-setup';
+//
+// Temporary workaround: Only import OTEL if NOT on Railway
+if (!process.env.RAILWAY_ENVIRONMENT && !process.env.RAILWAY_STATIC_URL) {
+  import('./otel-setup');
+}
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';

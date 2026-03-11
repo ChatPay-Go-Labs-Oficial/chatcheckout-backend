@@ -1,15 +1,30 @@
 import { Injectable, Inject, Optional } from '@nestjs/common';
 import type { Request } from 'express';
 import { REQUEST } from '@nestjs/core';
+import { trace, context, SpanStatusCode, SpanKind } from '@opentelemetry/api';
 
 /**
  * Tracing Service
  *
- * Provides access to correlation IDs and request context throughout the application.
- * Used in services to include correlation IDs in logs, database queries, and external API calls.
+ * Provides distributed tracing with OpenTelemetry manual spans.
+ * Use this in services to create custom spans for business operations.
+ *
+ * Example usage:
+ * ```typescript
+ * // Simple span
+ * tracingService.startSpan('user.login', { userId: user.id });
+ *
+ * // Span with async operation
+ * await tracingService.traceAsync(
+ *   'database.query',
+ *   async () => await this.repository.find()
+ * );
+ * ```
  */
 @Injectable()
 export class TracingService {
+  private readonly tracer = trace.getTracer('chatcheckout-backend');
+
   constructor(@Optional() @Inject(REQUEST) private readonly request?: Request) {}
 
   /**
@@ -20,10 +35,19 @@ export class TracingService {
   }
 
   /**
-   * Get the current request ID
+   * Get the current trace ID from active span
    */
-  getRequestId(): string {
-    return this.request?.tracingContext?.requestId || 'unknown';
+  getTraceId(): string {
+    const currentSpan = trace.getSpan(context.active());
+    return currentSpan?.spanContext().traceId || 'unknown';
+  }
+
+  /**
+   * Get the current span ID from active span
+   */
+  getSpanId(): string {
+    const currentSpan = trace.getSpan(context.active());
+    return currentSpan?.spanContext().spanId || 'unknown';
   }
 
   /**
@@ -31,13 +55,13 @@ export class TracingService {
    */
   getTracingContext(): {
     correlationId: string;
-    requestId: string;
-    timestamp?: number;
+    traceId: string;
+    spanId: string;
   } {
     return {
       correlationId: this.getCorrelationId(),
-      requestId: this.getRequestId(),
-      timestamp: this.request?.tracingContext?.timestamp,
+      traceId: this.getTraceId(),
+      spanId: this.getSpanId(),
     };
   }
 
@@ -55,65 +79,109 @@ export class TracingService {
       headers['x-request-id'] = this.request.tracingContext.requestId;
     }
 
+    // Add trace parent for distributed tracing
+    const currentSpan = trace.getSpan(context.active());
+    if (currentSpan) {
+      const spanContext = currentSpan.spanContext();
+      headers['traceparent'] = `00-${spanContext.traceId}-${spanContext.spanId}-0${spanContext.traceFlags.toString(16)}`;
+    }
+
     return headers;
   }
 
   /**
-   * Create a child span with business context
+   * Start a new span (fire and forget)
    *
-   * Use for database queries, external API calls, etc.
+   * Use for simple operations where you don't need to wait for completion
    */
-  createChildSpan(operation: string, data?: Record<string, any>): void {
-    // In a full OpenTelemetry setup, this would create a span
-    // For now, we log with correlation context
-    const context = {
-      ...this.getTracingContext(),
-      operation,
-      ...data,
-    };
-
-    // This would be integrated with the logging module
-    console.debug('[Span]', JSON.stringify(context));
+  startSpan(name: string, attributes?: Record<string, any>): void {
+    const span = this.tracer.startSpan(name, {
+      kind: SpanKind.INTERNAL,
+      attributes,
+    });
+    span.end();
   }
 
   /**
-   * Wrap a function with tracing context
+   * Start a span and return it for manual control
    *
    * Usage:
    * ```typescript
-   * const result = await tracingService.trace(
-   *   'database.query',
-   *   async () => await this.repository.find()
+   * const span = tracingService.createSpan('database.query');
+   * try {
+   *   // do work
+   * } finally {
+   *   span.end();
+   * }
+   * ```
+   */
+  createSpan(name: string, attributes?: Record<string, any>) {
+    return this.tracer.startSpan(name, {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        ...attributes,
+        correlationId: this.getCorrelationId(),
+      },
+    });
+  }
+
+  /**
+   * Wrap an async function with automatic tracing
+   *
+   * Usage:
+   * ```typescript
+   * const result = await tracingService.traceAsync(
+   *   'user.find',
+   *   { userId: '123' },
+   *   async () => await this.userRepository.findOne({ where: { id: '123' } })
    * );
    * ```
    */
-  async trace<T>(
-    operation: string,
-    fn: () => Promise<T>,
-    data?: Record<string, any>,
+  async traceAsync<T>(
+    name: string,
+    attributes: Record<string, any>,
+    fn: (span: ReturnType<typeof this.tracer.startSpan>) => Promise<T>,
   ): Promise<T> {
-    const startTime = Date.now();
-    this.createChildSpan(operation, data);
+    return this.tracer.startActiveSpan(
+      name,
+      { kind: SpanKind.INTERNAL, attributes: { ...attributes, correlationId: this.getCorrelationId() } },
+      async (span) => {
+        try {
+          const result = await fn(span);
+          span.setStatus({ code: SpanStatusCode.OK });
+          return result;
+        } catch (error) {
+          span.recordException(error as Error);
+          span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error).message });
+          throw error;
+        } finally {
+          span.end();
+        }
+      },
+    );
+  }
 
-    try {
-      const result = await fn();
-      const duration = Date.now() - startTime;
+  /**
+   * Record an error on the current span
+   */
+  recordError(error: Error, attributes?: Record<string, any>): void {
+    const currentSpan = trace.getSpan(context.active());
+    if (currentSpan) {
+      currentSpan.recordException(error);
+      currentSpan.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+      if (attributes) {
+        currentSpan.setAttributes(attributes);
+      }
+    }
+  }
 
-      this.createChildSpan(`${operation}.complete`, {
-        duration: `${duration}ms`,
-        success: true,
-      });
-
-      return result;
-    } catch (error) {
-      const duration = Date.now() - startTime;
-
-      this.createChildSpan(`${operation}.error`, {
-        duration: `${duration}ms`,
-        error: error instanceof Error ? error.message : String(error),
-      });
-
-      throw error;
+  /**
+   * Add attributes to the current span
+   */
+  setAttributes(attributes: Record<string, any>): void {
+    const currentSpan = trace.getSpan(context.active());
+    if (currentSpan) {
+      currentSpan.setAttributes(attributes);
     }
   }
 }

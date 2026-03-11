@@ -10,7 +10,108 @@ import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { Request } from 'express';
 import { LokiService } from '../loki.service';
-import { trace, context as otelContext } from '@opentelemetry/api';
+import { trace, context as otelContext, SpanStatusCode, SpanKind } from '@opentelemetry/api';
+
+/**
+ * Logging Interceptor
+ *
+ * Adds business context to structured logs including:
+ * - User ID and roles
+ * - Seller ID for business operations
+ * - Request timing
+ * - Business context from request metadata
+ * - Sends logs to Loki when enabled
+ * - Creates manual HTTP spans for OpenTelemetry
+ */
+@Injectable()
+export class LoggingInterceptor implements NestInterceptor {
+  private readonly logger = new Logger(LoggingInterceptor.name);
+  private readonly tracer = trace.getTracer('chatcheckout-backend');
+
+  constructor(@Optional() private lokiService: LokiService) {}
+
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const request = context.switchToHttp().getRequest<Request>();
+    const response = context.switchToHttp().getResponse();
+
+    // Create HTTP span (replaces auto-instrumentation)
+    const span = this.tracer.startSpan(
+      `HTTP ${request.method}`,
+      {
+        kind: SpanKind.SERVER,
+        attributes: {
+          'http.method': request.method,
+          'http.url': request.url,
+          'http.target': request.url,
+          'http.scheme': request.protocol,
+          'http.host': request.get('host'),
+          'http.user_agent': request.get('user-agent'),
+          'http.request_id': request.id,
+          'net.host.name': request.hostname,
+        },
+      },
+    );
+
+    // Run the handler within the span context
+    return Observable.create((observer) => {
+      otelContext.with(trace.setSpan(otelContext.active(), span), () => {
+        // Extract business context from request
+        const businessContext = this.extractBusinessContext(request);
+
+        // Add business context to request metadata for logging
+        request.loggingContext = {
+          ...businessContext,
+          startTime: Date.now(),
+        };
+
+        // Get trace ID from OpenTelemetry
+        const traceId = span.spanContext()?.traceId;
+
+        // Handle the request
+        next.handle().subscribe({
+          next: (value) => {
+            const startTime = request.loggingContext?.startTime || Date.now();
+            const duration = Date.now() - startTime;
+
+            // Set span attributes for response
+            span.setAttributes({
+              'http.status_code': response.statusCode,
+              'http.status_text': response.statusMessage,
+              'http.response_time_ms': duration,
+            });
+
+            // Set span status based on status code
+            if (response.statusCode >= 500) {
+              span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${response.statusCode}` });
+            } else {
+              span.setStatus({ code: SpanStatusCode.OK });
+            }
+
+            this.logRequestCompletion(request, response, duration, businessContext, traceId);
+            observer.next(value);
+          },
+          error: (error) => {
+            const startTime = request.loggingContext?.startTime || Date.now();
+            const duration = Date.now() - startTime;
+
+            // Record exception in span
+            span.recordException(error);
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: error.message,
+            });
+
+            this.logRequestError(request, duration, error, businessContext, traceId);
+            observer.error(error);
+          },
+          complete: () => {
+            span.end();
+            observer.complete();
+          },
+        });
+      });
+    });
+  }
 
 /**
  * Logging Interceptor

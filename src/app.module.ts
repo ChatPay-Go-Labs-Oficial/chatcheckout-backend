@@ -31,19 +31,44 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get('DATABASE_HOST', 'localhost'),
-        port: config.get('DATABASE_PORT', 5432),
-        username: config.get('DATABASE_USER', 'postgres'),
-        password: config.get('DATABASE_PASSWORD', 'postgres'),
-        database: config.get('DATABASE_NAME', 'chatcheckout'),
-        entities: ['dist/**/*.entity.js'],
-        migrations: ['dist/migrations/*.js'],
-        synchronize: false,
-        logging: config.get('NODE_ENV') === 'development',
-        migrationsTableName: 'migrations_history',
-      }),
+      useFactory: (config: ConfigService) => {
+        // Support Railway's DATABASE_URL format
+        const databaseUrl = config.get<string>('DATABASE_URL');
+
+        if (databaseUrl) {
+          // Parse DATABASE_URL: postgresql://user:password@host:port/database
+          const url = new URL(databaseUrl);
+          return {
+            type: 'postgres',
+            host: url.hostname,
+            port: parseInt(url.port) || 5432,
+            username: url.username,
+            password: url.password,
+            database: url.pathname.substring(1), // Remove leading slash
+            entities: ['dist/**/*.entity.js'],
+            migrations: ['dist/migrations/*.js'],
+            synchronize: false,
+            logging: config.get('NODE_ENV') === 'development',
+            migrationsTableName: 'migrations_history',
+            ssl: { rejectUnauthorized: false }, // Railway requires SSL
+          };
+        }
+
+        // Fallback to individual DATABASE_* variables
+        return {
+          type: 'postgres',
+          host: config.get('DATABASE_HOST', 'localhost'),
+          port: config.get('DATABASE_PORT', 5432),
+          username: config.get('DATABASE_USER', 'postgres'),
+          password: config.get('DATABASE_PASSWORD', 'postgres'),
+          database: config.get('DATABASE_NAME', 'chatcheckout'),
+          entities: ['dist/**/*.entity.js'],
+          migrations: ['dist/migrations/*.js'],
+          synchronize: false,
+          logging: config.get('NODE_ENV') === 'development',
+          migrationsTableName: 'migrations_history',
+        };
+      },
     }),
     HealthModule,
     TracingModule,

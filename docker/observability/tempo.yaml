@@ -8,11 +8,19 @@ distributor:
         http:
         grpc:
 
+<<<<<<< HEAD
 ingester:
   max_block_duration: 5m
 
 storage:
   trace:
     backend: local
+=======
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /tmp/tempo/wal
+>>>>>>> development
     local:
       path: /tmp/tempo/traces

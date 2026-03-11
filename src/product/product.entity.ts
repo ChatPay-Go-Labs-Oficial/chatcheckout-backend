@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
-import { User } from 'src/user/user.entity';
+import { User } from '../user/user.entity';
 
 export enum Currency {
   BRL = 'BRL',
@@ -12,17 +12,32 @@ export class Product {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ nullable: false })
   name: string;
 
-  @Column('decimal')
+  @Column({ nullable: false })
+  description: string;
+
+  @Column('decimal', { nullable: false })
   price: number;
 
   @Column({ type: 'enum', enum: Currency })
   currency: Currency;
 
-  @Column()
-  description: string;
+  @Column({ nullable: false })
+  salesPageUrl: string;
+
+  @Column({ nullable: true })
+  promptAi: string;
+
+  @Column({ nullable: true })
+  imageUrl: string;
+
+  @Column({ nullable: false })
+  productUrl: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  productHash: string | null;
 
   @ManyToOne(() => User, { nullable: false })
   user: User;

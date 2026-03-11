@@ -1,30 +1,38 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserBusinessValidator } from './validators/user-business.validator';
 import * as bcrypt from 'bcrypt';
+import { UserRole } from './user-role.enum';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly userBusinessValidator: UserBusinessValidator,
   ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
+    await this.userBusinessValidator.validateForCreation(dto);
+
     const password_hash = await bcrypt.hash(dto.password, 10);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { confirmPassword, password, ...userDataWithoutPassword } = dto;
     const user = this.userRepository.create({
-      email: dto.email,
+      ...userDataWithoutPassword,
       password_hash,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      cpf: dto.cpf,
-      role: dto.role,
-      companyName: dto.companyName,
-      cnpj: dto.cnpj,
     });
+
     return this.userRepository.save(user);
   }
 
@@ -49,5 +57,40 @@ export class UserService {
   async remove(id: string): Promise<void> {
     const user = await this.findById(id);
     await this.userRepository.remove(user);
+  }
+
+  async upsertCryptoWallet(userId: string, walletAddress: string): Promise<User> {
+    const user = await this.findById(userId);
+    this.ensureInfoproducer(user);
+
+    const normalizedAddress = walletAddress.trim().toUpperCase();
+    const existingUserWithWallet = await this.userRepository.findOne({
+      where: { cryptoWalletAddress: normalizedAddress },
+    });
+
+    if (existingUserWithWallet && existingUserWithWallet.id !== user.id) {
+      throw new ConflictException('Wallet address is already associated with another user');
+    }
+
+    user.cryptoWalletAddress = normalizedAddress;
+    return this.userRepository.save(user);
+  }
+
+  async removeCryptoWallet(userId: string): Promise<void> {
+    const user = await this.findById(userId);
+    this.ensureInfoproducer(user);
+
+    if (!user.cryptoWalletAddress) {
+      return;
+    }
+
+    user.cryptoWalletAddress = null;
+    await this.userRepository.save(user);
+  }
+
+  private ensureInfoproducer(user: User): void {
+    if (user.role !== UserRole.Infoproducer) {
+      throw new ForbiddenException('Only infoproducers can manage crypto wallet address');
+    }
   }
 }

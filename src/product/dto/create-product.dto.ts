@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Currency } from '../product.entity';
-import { IsNotEmpty, IsNumber, IsPositive, IsEnum, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsPositive, IsEnum, IsString, IsUrl } from 'class-validator';
 
 export class CreateProductDto {
   @ApiProperty()
@@ -21,6 +21,11 @@ export class CreateProductDto {
   description: string;
 
   @ApiProperty()
+  @IsString()
+  promptAi: string;
+
+  @ApiProperty()
   @IsNotEmpty()
-  userId: string;
+  @IsUrl()
+  salesPageUrl: string;
 }

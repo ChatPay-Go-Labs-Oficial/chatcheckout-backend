@@ -1,9 +1,35 @@
-import { Controller, Post, Body, Get, UseGuards, Param, Put, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  UseGuards,
+  Param,
+  Patch,
+  Delete,
+  Req,
+  Query,
+  UseInterceptors,
+  UploadedFiles,
+} from '@nestjs/common';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
+import { ProductDecodeResponseDto } from './dto/product-decode-response.dto';
+import { DecodeHashParamsDto } from './dto/decode-hash-params.dto';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+} from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ResourceOwnerGuard, OwnerParam } from '../common/guards';
+import { ProductOwnerGuard } from './guards';
+import type { Request } from 'express';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('product')
 @ApiBearerAuth()
@@ -12,23 +38,79 @@ export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
   @Post()
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'productFile', maxCount: 1 },
+      { name: 'productImage', maxCount: 1 },
+    ]),
+  )
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create new product' })
   @ApiResponse({ status: 201, description: 'Product created successfully.' })
-  async create(@Body() dto: CreateProductDto) {
-    return this.productService.create(dto);
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', example: 'Produto Exemplo' },
+        price: { type: 'number', example: 99.9 },
+        currency: { type: 'string', enum: ['BRL', 'XLM', 'USDC'] },
+        description: { type: 'string', example: 'Descrição do produto' },
+        promptAi: { type: 'string', example: 'Gere texto de venda' },
+        salesPageUrl: { type: 'string', example: 'https://meusite.com/produto' },
+        productFile: { type: 'string', format: 'binary' },
+        productImage: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  async create(
+    @Req() req: Request,
+    @Body() dto: CreateProductDto,
+    @UploadedFiles()
+    files: { productFile?: Express.Multer.File[]; productImage?: Express.Multer.File[] },
+  ) {
+    const userId = (req.user as { userId: string }).userId;
+
+    // Extrair os arquivos do objeto files
+    const productFile = files.productFile?.[0];
+    const productImage = files.productImage?.[0];
+
+    return this.productService.create(userId, dto, productFile, productImage);
   }
 
   @Get()
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'List all products' })
   @ApiResponse({ status: 200, description: 'List of products.' })
-  async findAll() {
-    return this.productService.findAll();
+  async findAll(@Query('page') page: number = 1, @Query('limit') limit: number = 10) {
+    return this.productService.findAll(page, limit);
+  }
+
+  /**
+   * Public endpoint for checkout flow.
+   * Intentionally unauthenticated to allow customers to view product details via hash.
+   * Only returns non-sensitive seller information (no email or private data).
+   * The product hash serves as the authorization mechanism.
+   */
+  @Get('by-hash/:hash')
+  @ApiOperation({
+    summary: 'Get product by hash and seller info',
+    description:
+      'Public endpoint - returns product details and limited seller info (excludes sensitive data like email)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Product info decoded with non-sensitive seller data.',
+    type: ProductDecodeResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Product not found.' })
+  @ApiResponse({ status: 400, description: 'Invalid hash format or decryption failed.' })
+  async getProductByHash(@Param() params: DecodeHashParamsDto) {
+    return this.productService.getProductByHash(params.hash);
   }
 
   @Get(':id')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get product by ID' })
   @ApiResponse({ status: 200, description: 'Product found.' })
   @ApiResponse({ status: 404, description: 'Product not found.' })
@@ -37,29 +119,74 @@ export class ProductController {
   }
 
   @Get('user/:userId')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(JwtAuthGuard, ResourceOwnerGuard)
+  @OwnerParam('userId')
   @ApiOperation({ summary: 'List products by user' })
   @ApiResponse({ status: 200, description: 'List of user products.' })
+  @ApiResponse({ status: 403, description: 'Forbidden - You can only view your own products.' })
   async findByUser(@Param('userId') userId: string) {
     return this.productService.findByUser(userId);
   }
 
-  @Put(':id')
-  @UseGuards(AuthGuard('jwt'))
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, ProductOwnerGuard)
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'productFile', maxCount: 1 },
+      { name: 'productImage', maxCount: 1 },
+    ]),
+  )
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Update product' })
   @ApiResponse({ status: 200, description: 'Product updated.' })
+  @ApiResponse({ status: 403, description: 'Forbidden - You can only update your own products.' })
   @ApiResponse({ status: 404, description: 'Product not found.' })
-  async update(@Param('id') id: string, @Body() dto: UpdateProductDto) {
-    return this.productService.update(id, dto);
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', example: 'Updated Product' },
+        price: { type: 'number', example: 149.9 },
+        currency: { type: 'string', enum: ['BRL', 'XLM', 'USDC'] },
+        description: { type: 'string', example: 'New description' },
+        promptAi: { type: 'string', example: 'New prompt' },
+        salesPageUrl: { type: 'string', example: 'https://mysite.com/new-product' },
+        productFile: {
+          type: 'string',
+          format: 'binary',
+          description: 'New product file (optional)',
+        },
+        productImage: {
+          type: 'string',
+          format: 'binary',
+          description: 'New product image (optional)',
+        },
+      },
+    },
+  })
+  async update(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Body() dto: UpdateProductDto,
+    @UploadedFiles()
+    files?: { productFile?: Express.Multer.File[]; productImage?: Express.Multer.File[] },
+  ) {
+    const userId = (req.user as { userId: string }).userId;
+    const productFile = files?.productFile?.[0];
+    const productImage = files?.productImage?.[0];
+
+    return this.productService.update(id, dto, userId, productFile, productImage);
   }
 
   @Delete(':id')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(JwtAuthGuard, ProductOwnerGuard)
   @ApiOperation({ summary: 'Delete product' })
   @ApiResponse({ status: 200, description: 'Product deleted.' })
+  @ApiResponse({ status: 403, description: 'Forbidden - You can only delete your own products.' })
   @ApiResponse({ status: 404, description: 'Product not found.' })
-  async remove(@Param('id') id: string) {
-    await this.productService.remove(id);
+  async remove(@Param('id') id: string, @Req() req: Request) {
+    const userId = (req.user as { userId: string }).userId;
+    await this.productService.remove(id, userId);
     return { message: 'Product deleted successfully.' };
   }
 }

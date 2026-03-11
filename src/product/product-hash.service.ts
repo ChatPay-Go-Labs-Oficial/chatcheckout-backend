@@ -1,0 +1,63 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as crypto from 'crypto';
+
+interface ProductHashData {
+  productId: string;
+  salesPageUrl: string;
+  promptAI: string;
+  userId: string;
+}
+
+@Injectable()
+export class ProductHashService {
+  private readonly algorithm = 'aes-256-cbc';
+  private readonly key: Buffer;
+
+  constructor(private configService: ConfigService) {
+    const secret = this.configService.get<string>('PRODUCT_HASH_SECRET');
+    if (!secret) {
+      throw new Error('PRODUCT_HASH_SECRET is not defined in environment variables');
+    }
+    // Generate key from secret using scrypt
+    this.key = crypto.scryptSync(secret, 'salt', 32);
+  }
+
+  generateHash(
+    productId: string,
+    salesPageUrl: string,
+    promptAi: string | null,
+    userId: string,
+  ): string {
+    const data: ProductHashData = {
+      productId: productId || '',
+      salesPageUrl: salesPageUrl || '',
+      promptAI: promptAi || '',
+      userId: userId || '',
+    };
+
+    // Generate a random IV for each encryption (security best practice)
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(this.algorithm, this.key, iv);
+    let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+
+    // Prepend IV to ciphertext for later extraction during decryption
+    return iv.toString('hex') + encrypted;
+  }
+
+  decodeHash(hash: string): ProductHashData {
+    try {
+      // Extract IV from the beginning of the hash (first 32 hex chars = 16 bytes)
+      const iv = Buffer.from(hash.slice(0, 32), 'hex');
+      const encryptedData = hash.slice(32);
+
+      const decipher = crypto.createDecipheriv(this.algorithm, this.key, iv);
+      let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return JSON.parse(decrypted) as ProductHashData;
+    } catch {
+      throw new Error('Invalid hash or decryption failed');
+    }
+  }
+}

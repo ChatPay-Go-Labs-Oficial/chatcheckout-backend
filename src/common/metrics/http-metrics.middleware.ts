@@ -24,14 +24,22 @@ export class HttpMetricsMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     const start = Date.now();
 
-    // Get route path (use route name if available, otherwise use URL path)
-    const route = (req as any).route?.path || req.baseUrl + req.route?.path || req.url || 'unknown';
-
     // Listen for response finish
     res.on('finish', () => {
-      const duration = (Date.now() - start) / 1000; // Convert to seconds
+      const duration = (Date.now() - start) / 1000;
       const method = req.method;
       const statusCode = res.statusCode.toString();
+
+      // Better route extraction after request is processed
+      let route = (req as any).route?.path || req.baseUrl || req.path || 'unknown';
+
+      // Clean up UUIDs and numbers to avoid high cardinality in Prometheus
+      // e.g. /product/123-abc -> /product/:id
+      if (route !== 'unknown') {
+        route = route
+          .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ':id')
+          .replace(/\/\d+/g, '/:id');
+      }
 
       // Record metrics
       httpRequestsTotal.inc({ method, route, status_code: statusCode });

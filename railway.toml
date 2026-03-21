@@ -8,7 +8,7 @@ builder = "NIXPACKS"
 buildCommand = "npm run build"
 
 [deploy]
-startCommand = "node dist/main.js"
+startCommand = "sh -c 'npx typeorm migration:run -d dist/config/typeorm.config.js && node dist/main.js'"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"

@@ -2,7 +2,7 @@ import { trace, context as otelContext } from '@opentelemetry/api';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { Resource } from '@opentelemetry/resources';
+import { resourceFromAttributes } from '@opentelemetry/resources';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { Logger } from '@nestjs/common';
 
@@ -13,7 +13,7 @@ const tempoEndpoint = process.env.TEMPO_ENDPOINT || 'http://localhost:4318/v1/tr
 
 // Configure the OpenTelemetry SDK
 const sdk = new NodeSDK({
-  resource: new Resource({
+  resource: resourceFromAttributes({
     'service.name': 'chatcheckout-backend',
     'deployment.environment': process.env.NODE_ENV || 'development',
   }),

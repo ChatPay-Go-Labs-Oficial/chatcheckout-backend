@@ -22,6 +22,7 @@ import { ObservabilityModule } from './common/observability/observability.module
 import { BusinessEventsModule } from './common/business-events/business-events.module';
 import { HttpMetricsModule } from './common/metrics/http-metrics.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { AuditModule } from './common/audit/audit.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     TracingModule,
     ObservabilityModule,
     BusinessEventsModule,
+    AuditModule,
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

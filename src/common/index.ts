@@ -19,3 +19,7 @@ export * from './observability/observability.module';
 export * from './business-events/business-events.module';
 export * from './business-events/business-events.service';
 export * from './business-events/business-events.types';
+
+// Audit
+export * from './audit/audit.module';
+export * from './audit/audit-log.service';

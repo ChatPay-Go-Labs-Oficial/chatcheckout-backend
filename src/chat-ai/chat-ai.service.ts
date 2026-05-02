@@ -27,6 +27,7 @@ export class ChatAiService {
       message: createChatAiDto.message,
       url: decodedHash.salesPageUrl,
       promptAI: decodedHash.promptAI,
+      session_id: createChatAiDto.sessionId,
     };
 
     try {

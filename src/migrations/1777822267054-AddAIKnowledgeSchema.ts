@@ -1,0 +1,122 @@
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddAIKnowledgeSchema1777822267054 implements MigrationInterface {
+    name = 'AddAIKnowledgeSchema1777822267054'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "seller_ledger_entries" DROP CONSTRAINT "FK_seller_ledger_entries_seller"`);
+        await queryRunner.query(`ALTER TABLE "seller_ledger_entries" DROP CONSTRAINT "FK_seller_ledger_entries_order"`);
+        await queryRunner.query(`ALTER TABLE "crypto_transactions" DROP CONSTRAINT "FK_crypto_transactions_order"`);
+        await queryRunner.query(`ALTER TABLE "stripe_transactions" DROP CONSTRAINT "FK_stripe_transactions_order"`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" DROP CONSTRAINT "FK_checkout_tracking_events_session"`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" DROP CONSTRAINT "FK_checkout_tracking_events_seller"`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" DROP CONSTRAINT "FK_checkout_tracking_events_product"`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" DROP CONSTRAINT "FK_checkout_tracking_events_order"`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_sessions" DROP CONSTRAINT "FK_checkout_tracking_sessions_product"`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_sessions" DROP CONSTRAINT "FK_checkout_tracking_sessions_seller"`);
+        await queryRunner.query(`DROP INDEX "public"."UQ_users_crypto_wallet_address_not_null"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_checkout_tracking_events_session_occurred_at"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_checkout_tracking_events_seller_occurred_at"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_checkout_tracking_events_product_occurred_at"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_checkout_tracking_events_event_type_occurred_at"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_checkout_tracking_events_order_id"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_checkout_tracking_events_source"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_checkout_tracking_sessions_seller_started_at"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_checkout_tracking_sessions_expires_at"`);
+        await queryRunner.query(`CREATE TABLE "product_faqs" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "product_id" uuid NOT NULL, "seller_id" uuid NOT NULL, "question" text NOT NULL, "answer" text NOT NULL, "is_active" boolean NOT NULL DEFAULT true, "created_at" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_aaf0942b97426c4618f230bb0ce" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`ALTER TABLE "product_faqs" ADD COLUMN "q_embedding" vector(768) NOT NULL`);
+        await queryRunner.query(`CREATE INDEX "idx_product_faqs_product_embedding" ON "product_faqs" USING hnsw ("q_embedding" vector_cosine_ops)`);
+        await queryRunner.query(`CREATE INDEX "idx_product_faqs_product_id" ON "product_faqs" ("product_id") `);
+        await queryRunner.query(`CREATE TABLE "knowledge_chunks" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "product_id" uuid NOT NULL, "seller_id" uuid NOT NULL, "chunk_text" text NOT NULL, "chunk_index" integer NOT NULL, "source_type" character varying(20) NOT NULL, "source_meta" jsonb, "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_81af684d79d321813c41019a5cd" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`ALTER TABLE "knowledge_chunks" ADD COLUMN "embedding" vector(768) NOT NULL`);
+        await queryRunner.query(`CREATE INDEX "idx_knowledge_chunks_product_embedding" ON "knowledge_chunks" USING hnsw ("embedding" vector_cosine_ops) WITH (m = 16, ef_construction = 64)`);
+        await queryRunner.query(`CREATE INDEX "idx_knowledge_chunks_product_id" ON "knowledge_chunks" ("product_id") `);
+        await queryRunner.query(`CREATE INDEX "idx_knowledge_chunks_seller_id" ON "knowledge_chunks" ("seller_id") `);
+        await queryRunner.query(`CREATE TYPE "public"."ingestion_jobs_status_enum" AS ENUM('pending', 'processing', 'completed', 'failed')`);
+        await queryRunner.query(`CREATE TABLE "ingestion_jobs" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "product_id" uuid NOT NULL, "seller_id" uuid NOT NULL, "r2_key" character varying(512) NOT NULL, "original_name" character varying(255) NOT NULL, "file_size_bytes" bigint NOT NULL, "status" "public"."ingestion_jobs_status_enum" NOT NULL DEFAULT 'pending', "chunks_created" integer, "error_message" text, "started_at" TIMESTAMP WITH TIME ZONE, "completed_at" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_78a3cba789582043cfc8ba82edd" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`CREATE INDEX "idx_ingestion_jobs_product_id" ON "ingestion_jobs" ("product_id") `);
+        await queryRunner.query(`CREATE INDEX "idx_ingestion_jobs_status" ON "ingestion_jobs" ("status") `);
+        await queryRunner.query(`CREATE TABLE "ai_usage_logs" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "seller_id" uuid NOT NULL, "product_id" uuid NOT NULL, "session_id" character varying(64) NOT NULL, "tokens_in" integer NOT NULL, "tokens_out" integer NOT NULL, "model_used" character varying(50) NOT NULL, "knowledge_source" character varying(20) NOT NULL, "cost_usd" numeric(10,8) NOT NULL, "latency_ms" integer, "created_at" TIMESTAMP NOT NULL DEFAULT now(), CONSTRAINT "PK_7f42670987a1de5cb209a77e925" PRIMARY KEY ("id"))`);
+        await queryRunner.query(`CREATE INDEX "idx_ai_usage_seller_month" ON "ai_usage_logs" ("seller_id", "created_at") `);
+        await queryRunner.query(`ALTER TABLE "product" ADD "crypto_payments_enabled" boolean NOT NULL DEFAULT false`);
+        await queryRunner.query(`ALTER TABLE "product" ADD "knowledge_ready" boolean NOT NULL DEFAULT false`);
+        await queryRunner.query(`ALTER TABLE "product" ADD "knowledge_updated_at" TIMESTAMP WITH TIME ZONE`);
+        await queryRunner.query(`ALTER TABLE "product" ADD "ebook_r2_key" character varying`);
+        await queryRunner.query(`ALTER TABLE "orders" ALTER COLUMN "payment_method" DROP DEFAULT`);
+        await queryRunner.query(`ALTER TABLE "seller_ledger_entries" ADD CONSTRAINT "FK_801b9a3a8d56dcf724ed7a79f68" FOREIGN KEY ("seller_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "seller_ledger_entries" ADD CONSTRAINT "FK_879198e18de0f7221d1d978f96b" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "crypto_transactions" ADD CONSTRAINT "FK_1b1d3bc7dee89240f32a52ac1f1" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "stripe_transactions" ADD CONSTRAINT "FK_40cd865df38e85187647a6b8549" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "product_faqs" ADD CONSTRAINT "FK_2133646b0d11da71158fcccce8b" FOREIGN KEY ("product_id") REFERENCES "product"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "product_faqs" ADD CONSTRAINT "FK_ca4d106f1bbe409d0e702bdbc65" FOREIGN KEY ("seller_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "knowledge_chunks" ADD CONSTRAINT "FK_e9c7e9fc4b00f66cb45d5d67858" FOREIGN KEY ("product_id") REFERENCES "product"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "knowledge_chunks" ADD CONSTRAINT "FK_f15dfa0583b6328634f04f19a45" FOREIGN KEY ("seller_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "ingestion_jobs" ADD CONSTRAINT "FK_34ae016e7f18f5280838546bd42" FOREIGN KEY ("product_id") REFERENCES "product"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "ingestion_jobs" ADD CONSTRAINT "FK_6deddaab46378354f39b476def8" FOREIGN KEY ("seller_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" ADD CONSTRAINT "FK_a123c76c5d21f894c6c639411b8" FOREIGN KEY ("session_id") REFERENCES "checkout_tracking_sessions"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" ADD CONSTRAINT "FK_fe8eb35ac2480fbb6791262a128" FOREIGN KEY ("seller_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" ADD CONSTRAINT "FK_94bf9679b37084257db84bde480" FOREIGN KEY ("product_id") REFERENCES "product"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" ADD CONSTRAINT "FK_d7fd5da2b013c53523e10252ee8" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_sessions" ADD CONSTRAINT "FK_e4cec94f16ba7f56f7140d0db66" FOREIGN KEY ("product_id") REFERENCES "product"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_sessions" ADD CONSTRAINT "FK_b105829105daff27ff5a0ba0726" FOREIGN KEY ("seller_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "ai_usage_logs" ADD CONSTRAINT "FK_18759134982a6068dea6e8aa580" FOREIGN KEY ("product_id") REFERENCES "product"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "ai_usage_logs" ADD CONSTRAINT "FK_be0de5355931c7f22e6d0a8a8cb" FOREIGN KEY ("seller_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "ai_usage_logs" DROP CONSTRAINT "FK_be0de5355931c7f22e6d0a8a8cb"`);
+        await queryRunner.query(`ALTER TABLE "ai_usage_logs" DROP CONSTRAINT "FK_18759134982a6068dea6e8aa580"`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_sessions" DROP CONSTRAINT "FK_b105829105daff27ff5a0ba0726"`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_sessions" DROP CONSTRAINT "FK_e4cec94f16ba7f56f7140d0db66"`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" DROP CONSTRAINT "FK_d7fd5da2b013c53523e10252ee8"`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" DROP CONSTRAINT "FK_94bf9679b37084257db84bde480"`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" DROP CONSTRAINT "FK_fe8eb35ac2480fbb6791262a128"`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" DROP CONSTRAINT "FK_a123c76c5d21f894c6c639411b8"`);
+        await queryRunner.query(`ALTER TABLE "ingestion_jobs" DROP CONSTRAINT "FK_6deddaab46378354f39b476def8"`);
+        await queryRunner.query(`ALTER TABLE "ingestion_jobs" DROP CONSTRAINT "FK_34ae016e7f18f5280838546bd42"`);
+        await queryRunner.query(`ALTER TABLE "knowledge_chunks" DROP CONSTRAINT "FK_f15dfa0583b6328634f04f19a45"`);
+        await queryRunner.query(`ALTER TABLE "knowledge_chunks" DROP CONSTRAINT "FK_e9c7e9fc4b00f66cb45d5d67858"`);
+        await queryRunner.query(`ALTER TABLE "product_faqs" DROP CONSTRAINT "FK_ca4d106f1bbe409d0e702bdbc65"`);
+        await queryRunner.query(`ALTER TABLE "product_faqs" DROP CONSTRAINT "FK_2133646b0d11da71158fcccce8b"`);
+        await queryRunner.query(`ALTER TABLE "stripe_transactions" DROP CONSTRAINT "FK_40cd865df38e85187647a6b8549"`);
+        await queryRunner.query(`ALTER TABLE "crypto_transactions" DROP CONSTRAINT "FK_1b1d3bc7dee89240f32a52ac1f1"`);
+        await queryRunner.query(`ALTER TABLE "seller_ledger_entries" DROP CONSTRAINT "FK_879198e18de0f7221d1d978f96b"`);
+        await queryRunner.query(`ALTER TABLE "seller_ledger_entries" DROP CONSTRAINT "FK_801b9a3a8d56dcf724ed7a79f68"`);
+        await queryRunner.query(`ALTER TABLE "orders" ALTER COLUMN "payment_method" SET DEFAULT 'STRIPE'`);
+        await queryRunner.query(`ALTER TABLE "product" DROP COLUMN "ebook_r2_key"`);
+        await queryRunner.query(`ALTER TABLE "product" DROP COLUMN "knowledge_updated_at"`);
+        await queryRunner.query(`ALTER TABLE "product" DROP COLUMN "knowledge_ready"`);
+        await queryRunner.query(`ALTER TABLE "product" DROP COLUMN "crypto_payments_enabled"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_ai_usage_seller_month"`);
+        await queryRunner.query(`DROP TABLE "ai_usage_logs"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_ingestion_jobs_status"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_ingestion_jobs_product_id"`);
+        await queryRunner.query(`DROP TABLE "ingestion_jobs"`);
+        await queryRunner.query(`DROP TYPE "public"."ingestion_jobs_status_enum"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_knowledge_chunks_seller_id"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_knowledge_chunks_product_id"`);
+        await queryRunner.query(`DROP TABLE "knowledge_chunks"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_product_faqs_product_id"`);
+        await queryRunner.query(`DROP TABLE "product_faqs"`);
+        await queryRunner.query(`CREATE INDEX "IDX_checkout_tracking_sessions_expires_at" ON "checkout_tracking_sessions" ("expires_at") `);
+        await queryRunner.query(`CREATE INDEX "IDX_checkout_tracking_sessions_seller_started_at" ON "checkout_tracking_sessions" ("seller_id", "started_at") `);
+        await queryRunner.query(`CREATE INDEX "IDX_checkout_tracking_events_source" ON "checkout_tracking_events" ("source") `);
+        await queryRunner.query(`CREATE INDEX "IDX_checkout_tracking_events_order_id" ON "checkout_tracking_events" ("order_id") `);
+        await queryRunner.query(`CREATE INDEX "IDX_checkout_tracking_events_event_type_occurred_at" ON "checkout_tracking_events" ("event_type", "occurred_at") `);
+        await queryRunner.query(`CREATE INDEX "IDX_checkout_tracking_events_product_occurred_at" ON "checkout_tracking_events" ("product_id", "occurred_at") `);
+        await queryRunner.query(`CREATE INDEX "IDX_checkout_tracking_events_seller_occurred_at" ON "checkout_tracking_events" ("seller_id", "occurred_at") `);
+        await queryRunner.query(`CREATE INDEX "IDX_checkout_tracking_events_session_occurred_at" ON "checkout_tracking_events" ("session_id", "occurred_at") `);
+        await queryRunner.query(`CREATE UNIQUE INDEX "UQ_users_crypto_wallet_address_not_null" ON "users" ("crypto_wallet_address") WHERE (crypto_wallet_address IS NOT NULL)`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_sessions" ADD CONSTRAINT "FK_checkout_tracking_sessions_seller" FOREIGN KEY ("seller_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_sessions" ADD CONSTRAINT "FK_checkout_tracking_sessions_product" FOREIGN KEY ("product_id") REFERENCES "product"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" ADD CONSTRAINT "FK_checkout_tracking_events_order" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" ADD CONSTRAINT "FK_checkout_tracking_events_product" FOREIGN KEY ("product_id") REFERENCES "product"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" ADD CONSTRAINT "FK_checkout_tracking_events_seller" FOREIGN KEY ("seller_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "checkout_tracking_events" ADD CONSTRAINT "FK_checkout_tracking_events_session" FOREIGN KEY ("session_id") REFERENCES "checkout_tracking_sessions"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "stripe_transactions" ADD CONSTRAINT "FK_stripe_transactions_order" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "crypto_transactions" ADD CONSTRAINT "FK_crypto_transactions_order" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "seller_ledger_entries" ADD CONSTRAINT "FK_seller_ledger_entries_order" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "seller_ledger_entries" ADD CONSTRAINT "FK_seller_ledger_entries_seller" FOREIGN KEY ("seller_id") REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
+    }
+
+}

@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
+import { BullModule } from '@nestjs/bullmq';
 import { ProductModule } from './product/product.module';
 import { UserModule } from './user/user.module';
 import { ChatAiModule } from './chat-ai/chat-ai.module';
@@ -15,6 +16,7 @@ import { PaymentModule } from './payment/payment.module';
 import { CheckoutTrackingModule } from './checkout-tracking/checkout-tracking.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { SellerModule } from './seller/seller.module';
+import { KnowledgeModule } from './knowledge/knowledge.module';
 import { LoggingModule } from './common/logging/logging.module';
 import { HealthModule } from './common/health/health.module';
 import { TracingModule } from './common/tracing/tracing.module';
@@ -86,6 +88,17 @@ import { AuditModule } from './common/audit/audit.module';
         },
       ],
     }),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (config: ConfigService) => ({
+        connection: {
+          host: config.get<string>('REDIS_HOST', 'localhost'),
+          port: config.get<number>('REDIS_PORT', 6379),
+          password: config.get<string>('REDIS_PASSWORD'),
+        },
+      }),
+    }),
     RedisModule,
     AuthModule,
     UserModule,
@@ -98,6 +111,7 @@ import { AuditModule } from './common/audit/audit.module';
     CheckoutTrackingModule,
     DashboardModule,
     SellerModule,
+    KnowledgeModule,
   ],
   providers: [
     {

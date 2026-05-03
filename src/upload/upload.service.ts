@@ -66,6 +66,25 @@ export class UploadService {
     }
   }
 
+  async uploadFileWithKey(file: Express.Multer.File, key: string): Promise<string> {
+    try {
+      const command = new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      });
+
+      await this.s3Client.send(command);
+
+      return `${this.publicUrl}/${key}`;
+    } catch (error) {
+      throw new InternalServerErrorException(
+        `Failed to upload file to R2 with specific key: ${(error as Error).message}`,
+      );
+    }
+  }
+
   async deleteFile(fileUrl: string): Promise<void> {
     try {
       // Extract Key from URL

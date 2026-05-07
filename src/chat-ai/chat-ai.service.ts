@@ -7,7 +7,7 @@ import type { Response } from 'express';
 
 @Injectable()
 export class ChatAiService {
-  private readonly apiUrl = process.env.PYTHON_API_URL!;
+  private readonly apiUrl = process.env.PYTHON_INFERENCE_URL!;
   private readonly bearerToken = process.env.PYTHON_API_BEARER_TOKEN!;
 
   constructor(
@@ -24,10 +24,11 @@ export class ChatAiService {
     const decodedHash = this.productHashService.decodeHash(createChatAiDto.productHash);
 
     const payload = {
+      product_id: decodedHash.productId,
+      seller_id: decodedHash.userId,
       message: createChatAiDto.message,
-      url: decodedHash.salesPageUrl,
-      promptAI: decodedHash.promptAI,
       session_id: createChatAiDto.sessionId,
+      prompt_ai: decodedHash.promptAI,
     };
 
     try {

@@ -152,5 +152,15 @@
     "setupFilesAfterEnv": [
       "<rootDir>/test-setup.ts"
     ]
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@scarf/scarf",
+      "bcrypt",
+      "msgpackr-extract",
+      "protobufjs",
+      "unrs-resolver"
+    ]
   }
 }

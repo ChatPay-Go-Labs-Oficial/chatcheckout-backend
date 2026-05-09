@@ -53,19 +53,20 @@ export class ChatAiService {
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const content = line.substring(6).trim();
-            if (content && content !== '[DONE]' && content !== '[ERROR]') {
-              // Filtra apenas lixo técnico da API Python
+            const rawContent = line.substring(6);
+            const trimmed = rawContent.trim();
+            if (trimmed && trimmed !== '[DONE]' && trimmed !== '[ERROR]') {
+              // Filtra lixo técnico da API Python
               if (
-                content === 'None' ||
-                content.includes('buscar_conteudo_completo_site') ||
-                content.includes('completed in')
+                trimmed === 'None' ||
+                trimmed.includes('buscar_conteudo_completo_site') ||
+                trimmed.includes('completed in')
               ) {
                 continue;
               }
 
-              // Reenvia o chunk EXATAMENTE como recebeu da API Python
-              res.write(`data: ${content}\n\n`);
+              // Reenvia preservando espaços originais dos tokens do LLM
+              res.write(`data: ${rawContent}\n\n`);
             }
           }
         }

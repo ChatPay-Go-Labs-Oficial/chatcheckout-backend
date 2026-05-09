@@ -1,8 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { ConfigService } from '@nestjs/config';
 import { Product } from './product.entity';
 import { User } from 'src/user/user.entity';
+import { IngestionJob, IngestionStatus } from '../knowledge/ingestion-job.entity';
+import { EBOOK_INGESTION_QUEUE } from '../knowledge/knowledge.constants';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductDecodeResponseDto } from './dto/product-decode-response.dto';
@@ -18,11 +23,50 @@ export class ProductService {
     private readonly productRepository: Repository<Product>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(IngestionJob)
+    private readonly ingestionJobRepository: Repository<IngestionJob>,
+    @InjectQueue(EBOOK_INGESTION_QUEUE)
+    private readonly ebookQueue: Queue,
     private readonly uploadService: UploadService,
     private readonly productHashService: ProductHashService,
     private readonly businessEvents: BusinessEventsService,
     private readonly supabaseSync: SupabaseSyncService,
+    private readonly config: ConfigService,
   ) {}
+
+  private async enqueuePdfIngestion(
+    productId: string,
+    sellerId: string,
+    productUrl: string,
+    originalName: string,
+    fileSizeBytes: number,
+  ): Promise<void> {
+    const publicUrl = this.config.get<string>('R2_PUBLIC_URL')!;
+    const r2Key = productUrl.slice(publicUrl.length + 1);
+
+    await this.productRepository.update(productId, {
+      ebookR2Key: r2Key,
+      knowledgeReady: false,
+      knowledgeUpdatedAt: null,
+    });
+
+    const jobRecord = this.ingestionJobRepository.create({
+      productId,
+      sellerId,
+      r2Key,
+      originalName,
+      fileSizeBytes,
+      status: IngestionStatus.PENDING,
+    });
+    const savedJob = await this.ingestionJobRepository.save(jobRecord);
+
+    await this.ebookQueue.add('ingest-ebook', {
+      jobId: savedJob.id,
+      productId,
+      sellerId,
+      r2Key,
+    });
+  }
 
   async create(
     userId: string,
@@ -75,6 +119,10 @@ export class ProductService {
     const finalProduct = await this.productRepository.save(savedProduct);
 
     void this.supabaseSync.upsertProductMin(finalProduct.id, userId, finalProduct.salesPageUrl ?? null);
+
+    if (productFile && productFile.mimetype === 'application/pdf' && finalProduct.productUrl) {
+      void this.enqueuePdfIngestion(finalProduct.id, userId, finalProduct.productUrl, productFile.originalname, productFile.size);
+    }
 
     // Track product created event
     this.businessEvents.trackProductEvent(ProductEventType.PRODUCT_CREATED, {
@@ -183,6 +231,10 @@ export class ProductService {
     const updatedProduct = await this.productRepository.save(product);
 
     void this.supabaseSync.upsertProductMin(updatedProduct.id, userId, updatedProduct.salesPageUrl ?? null);
+
+    if (productFile && productFile.mimetype === 'application/pdf' && updatedProduct.productUrl) {
+      void this.enqueuePdfIngestion(updatedProduct.id, userId, updatedProduct.productUrl, productFile.originalname, productFile.size);
+    }
 
     // Track product updated event
     this.businessEvents.trackProductEvent(ProductEventType.PRODUCT_UPDATED, {

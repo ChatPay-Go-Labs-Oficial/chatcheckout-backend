@@ -9,6 +9,7 @@ import { ProductDecodeResponseDto } from './dto/product-decode-response.dto';
 import { UploadService } from 'src/upload/upload.service';
 import { ProductHashService } from './product-hash.service';
 import { BusinessEventsService, ProductEventType } from '../common/business-events';
+import { SupabaseSyncService } from '../common/supabase/supabase-sync.service';
 
 @Injectable()
 export class ProductService {
@@ -20,6 +21,7 @@ export class ProductService {
     private readonly uploadService: UploadService,
     private readonly productHashService: ProductHashService,
     private readonly businessEvents: BusinessEventsService,
+    private readonly supabaseSync: SupabaseSyncService,
   ) {}
 
   async create(
@@ -71,6 +73,8 @@ export class ProductService {
     );
 
     const finalProduct = await this.productRepository.save(savedProduct);
+
+    void this.supabaseSync.upsertProductMin(finalProduct.id, userId, finalProduct.salesPageUrl ?? null);
 
     // Track product created event
     this.businessEvents.trackProductEvent(ProductEventType.PRODUCT_CREATED, {
@@ -178,6 +182,8 @@ export class ProductService {
 
     const updatedProduct = await this.productRepository.save(product);
 
+    void this.supabaseSync.upsertProductMin(updatedProduct.id, userId, updatedProduct.salesPageUrl ?? null);
+
     // Track product updated event
     this.businessEvents.trackProductEvent(ProductEventType.PRODUCT_UPDATED, {
       productId: updatedProduct.id,
@@ -203,6 +209,8 @@ export class ProductService {
 
     try {
       await this.productRepository.remove(product);
+
+      void this.supabaseSync.deleteProductMin(id);
 
       // Track product deleted event
       this.businessEvents.trackProductEvent(ProductEventType.PRODUCT_DELETED, {

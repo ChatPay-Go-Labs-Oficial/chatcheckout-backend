@@ -4,12 +4,16 @@ export class AddIngestionJobsAndProductColumns1777900000000 implements Migration
   name = 'AddIngestionJobsAndProductColumns1777900000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // ingestion_jobs: tracks async PDF processing jobs (owned by backend)
+    // ENUM type — IF NOT EXISTS via exception handling (PostgreSQL doesn't support IF NOT EXISTS for types)
     await queryRunner.query(`
-      CREATE TYPE "public"."ingestion_jobs_status_enum" AS ENUM('pending', 'processing', 'completed', 'failed')
+      DO $$ BEGIN
+        CREATE TYPE "public"."ingestion_jobs_status_enum" AS ENUM('pending', 'processing', 'completed', 'failed');
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$
     `);
+
     await queryRunner.query(`
-      CREATE TABLE "ingestion_jobs" (
+      CREATE TABLE IF NOT EXISTS "ingestion_jobs" (
         "id"              uuid NOT NULL DEFAULT uuid_generate_v4(),
         "product_id"      uuid NOT NULL,
         "seller_id"       uuid NOT NULL,
@@ -25,40 +29,49 @@ export class AddIngestionJobsAndProductColumns1777900000000 implements Migration
         CONSTRAINT "PK_ingestion_jobs" PRIMARY KEY ("id")
       )
     `);
+
     await queryRunner.query(`
-      CREATE INDEX "idx_ingestion_jobs_product_id" ON "ingestion_jobs" ("product_id")
+      CREATE INDEX IF NOT EXISTS "idx_ingestion_jobs_product_id" ON "ingestion_jobs" ("product_id")
     `);
     await queryRunner.query(`
-      CREATE INDEX "idx_ingestion_jobs_status" ON "ingestion_jobs" ("status")
-    `);
-    await queryRunner.query(`
-      ALTER TABLE "ingestion_jobs"
-        ADD CONSTRAINT "FK_ingestion_jobs_product" FOREIGN KEY ("product_id")
-          REFERENCES "product"("id") ON DELETE CASCADE ON UPDATE NO ACTION
-    `);
-    await queryRunner.query(`
-      ALTER TABLE "ingestion_jobs"
-        ADD CONSTRAINT "FK_ingestion_jobs_seller" FOREIGN KEY ("seller_id")
-          REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION
+      CREATE INDEX IF NOT EXISTS "idx_ingestion_jobs_status" ON "ingestion_jobs" ("status")
     `);
 
-    // product columns: knowledge state tracked by backend for upload/status endpoints
-    await queryRunner.query(`ALTER TABLE "product" ADD "knowledge_ready" boolean NOT NULL DEFAULT false`);
-    await queryRunner.query(`ALTER TABLE "product" ADD "knowledge_updated_at" TIMESTAMP WITH TIME ZONE`);
-    await queryRunner.query(`ALTER TABLE "product" ADD "ebook_r2_key" character varying`);
-    await queryRunner.query(`ALTER TABLE "product" ADD "crypto_payments_enabled" boolean NOT NULL DEFAULT false`);
+    // FK constraints — IF NOT EXISTS via exception handling
+    await queryRunner.query(`
+      DO $$ BEGIN
+        ALTER TABLE "ingestion_jobs"
+          ADD CONSTRAINT "FK_ingestion_jobs_product" FOREIGN KEY ("product_id")
+            REFERENCES "product"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$
+    `);
+    await queryRunner.query(`
+      DO $$ BEGIN
+        ALTER TABLE "ingestion_jobs"
+          ADD CONSTRAINT "FK_ingestion_jobs_seller" FOREIGN KEY ("seller_id")
+            REFERENCES "users"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$
+    `);
+
+    // Product columns — IF NOT EXISTS supported since PostgreSQL 9.6
+    await queryRunner.query(`ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "knowledge_ready" boolean NOT NULL DEFAULT false`);
+    await queryRunner.query(`ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "knowledge_updated_at" TIMESTAMP WITH TIME ZONE`);
+    await queryRunner.query(`ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "ebook_r2_key" character varying`);
+    await queryRunner.query(`ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "crypto_payments_enabled" boolean NOT NULL DEFAULT false`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "product" DROP COLUMN "crypto_payments_enabled"`);
-    await queryRunner.query(`ALTER TABLE "product" DROP COLUMN "ebook_r2_key"`);
-    await queryRunner.query(`ALTER TABLE "product" DROP COLUMN "knowledge_updated_at"`);
-    await queryRunner.query(`ALTER TABLE "product" DROP COLUMN "knowledge_ready"`);
-    await queryRunner.query(`ALTER TABLE "ingestion_jobs" DROP CONSTRAINT "FK_ingestion_jobs_seller"`);
-    await queryRunner.query(`ALTER TABLE "ingestion_jobs" DROP CONSTRAINT "FK_ingestion_jobs_product"`);
-    await queryRunner.query(`DROP INDEX "public"."idx_ingestion_jobs_status"`);
-    await queryRunner.query(`DROP INDEX "public"."idx_ingestion_jobs_product_id"`);
-    await queryRunner.query(`DROP TABLE "ingestion_jobs"`);
-    await queryRunner.query(`DROP TYPE "public"."ingestion_jobs_status_enum"`);
+    await queryRunner.query(`ALTER TABLE "product" DROP COLUMN IF EXISTS "crypto_payments_enabled"`);
+    await queryRunner.query(`ALTER TABLE "product" DROP COLUMN IF EXISTS "ebook_r2_key"`);
+    await queryRunner.query(`ALTER TABLE "product" DROP COLUMN IF EXISTS "knowledge_updated_at"`);
+    await queryRunner.query(`ALTER TABLE "product" DROP COLUMN IF EXISTS "knowledge_ready"`);
+    await queryRunner.query(`ALTER TABLE "ingestion_jobs" DROP CONSTRAINT IF EXISTS "FK_ingestion_jobs_seller"`);
+    await queryRunner.query(`ALTER TABLE "ingestion_jobs" DROP CONSTRAINT IF EXISTS "FK_ingestion_jobs_product"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "public"."idx_ingestion_jobs_status"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "public"."idx_ingestion_jobs_product_id"`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "ingestion_jobs"`);
+    await queryRunner.query(`DROP TYPE IF EXISTS "public"."ingestion_jobs_status_enum"`);
   }
 }
